@@ -1,0 +1,11 @@
+*.o
+*.a
+satch
+testapi
+makefile
+config.c
+*~
+*.gcda
+*.gcno
+*.gcov
+gmon.out
