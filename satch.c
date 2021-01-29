@@ -2739,8 +2739,8 @@ switch_mode (struct satch *solver)
   if (solver->stable)
     {
       solver->stable = false;
-      assert (swichted >= 2);
-      assert (!(swichted & 1));
+      assert (switched >= 2);
+      assert (!(switched & 1));
       const uint64_t conflicts = mode_interval * nlognlognlogn (switched/2);
       solver->limits.mode.conflicts = CONFLICTS + conflicts;
       solver->limits.mode.ticks = TICKS;
