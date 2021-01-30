@@ -170,16 +170,32 @@ NOT (unsigned lit)
 // mapped to internal variable indices '0..(INT_MAX-1)'.  Regarding literals
 // the mapping between internal and external literals is the following:
 //
-// external DIMACS literals               internal unsigned literals
+// +----------------------------------------+----------------------------+
+// | external signed DIMACS literals        | internal unsigned literals |
+// +----------------------------------------+----------------------------+
+// |     1                                  |    0                       |
+// |    -1                                  |    1                       |
+// |     2                                  |    2                       |
+// |    -2                                  |    3                       |
+// |    ...                                 |   ...                      |
+// |  INT_MAX =   (1u<<31)-1  =  2147483647 | (1u<<32)-4 = 4294967292    |
+// | -INT_MAX = -((1u<<31)-1) = -2147483647 | (1u<<32)-3 = 4294967293    |
+// +----------------------------------------+----------------------------+
 //
-//     1                                     0
-//    -1                                     1
-//     2                                     2
-//    -2                                     3
-//    ...                                   ...
-//  INT_MAX =   (1u<<31)-1  = 2147483647  (1u<<32)-4 = 4294967292
-// -INT_MAX = -((1u<<31)-1) = 2147483647  (1u<<32)-3 = 4294967293
-//     0                                  INVALID    = 4294967296 = UINT_MAX
+// We use the following two invalid values as sentinel to terminate a
+// clause externally or as invalid literal or variable internally:
+//
+// +----------------------------------------+----------------------------+
+// |     0                                  | INVALID    = (1u<<32)-1    |
+// |                                        |            = 4294967295    |
+// |                                        |            = UINT_MAX      |
+// +----------------------------------------+----------------------------+
+//
+// There are two unused values in each case:
+//
+// +----------------------------------------+----------------------------+
+// | INT_MIN = -(1u<<31)      = -2147483648 | (1u<<32)-2 = 4294967294    |
+// +----------------------------------------+----------------------------+
 //
 // Here we assume that 'sizeof (unsigned) == sizeof (int)', signed integers
 // are encoded in two-complement and thus 'INT_MAX == (1u<<31)-1'.
