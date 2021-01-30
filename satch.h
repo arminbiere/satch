@@ -3,7 +3,7 @@
 
 /*------------------------------------------------------------------------*/
 
-// SAT competition conformant exit codes also use for 'satch_solve'.
+// SAT competition conformant exit codes used for 'satch_solve'.
 
 #define UNKNOWN 0
 #define SATISFIABLE 10
@@ -34,9 +34,9 @@ void satch_reserve (struct satch *, int max_var);
 //
 int satch_maximum_variable (struct satch *);
 
-// By default the library does not print any messages (the binary however
-// does switch on 'verbose' messages by default unless '-q' is specified)
-// There are currently four non-zero levels of verbose messages.
+// By default the library does not print any messages (the solver binary
+// however does switch on 'verbose' messages by default unless '-q' is
+// specified). There are four non-zero levels of verbose messages.
 //
 void satch_set_verbose_level (struct satch *, int level);
 

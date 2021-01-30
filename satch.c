@@ -102,8 +102,7 @@
 #define restart_margin		1.25	// margin for fast_glue > slow_glue
 #ifndef NMODE
 #define mode_interval		1e3	// mode switching conflict interval
-#define inner_interval		1024	// stable mode restart interval
-#define inner_outer_factor	2	// inner / outer increase factor
+#define stable_restart_interval	1024	// basic stable restart interval
 #endif
 #endif
 
@@ -259,11 +258,6 @@ struct limits
   {
     uint64_t conflicts;		// Conflict limit on mode switching.
     uint64_t ticks;		// Ticks limit on mode switching.
-    struct
-    {
-      uint64_t inner;		// Inner restart conflict interval.
-      uint64_t outer;		// Outer restart conflict interval.
-    } restarts;
   } mode;
 #endif
 #endif
@@ -275,6 +269,13 @@ struct limits
   } reduce;
 #endif
 };
+
+#ifndef NMODE
+struct reluctant		// Reluctant doubling (by D. Knuth).
+{
+  uint64_t u, v;
+};
+#endif
 
 struct options			// Runtime options.
 {
@@ -377,7 +378,7 @@ PROFILE (total)			/* total time spent */
 struct profile
 {
   double start, time;		// start time, and total time
-  const char * name;		// used in 'print_profiles'
+  const char *name;		// used in 'print_profiles'
 };				// initialized in 'init_profiles'
 
 #define MAX_PROFILES		16
@@ -388,8 +389,8 @@ struct profiles
   struct profile NAME;		// declare all the profiles
   PROFILES
 #undef PROFILE
-  struct profile * begin[MAX_PROFILES];
-  struct profile ** end;
+  struct profile *begin[MAX_PROFILES];
+  struct profile **end;
 };
 
 struct satch
@@ -425,6 +426,9 @@ struct satch
   struct clauses redundant;	// current redundant clauses
 #endif
   struct limits limits;		// limits on restart
+#ifndef NMODE
+  struct reluctant reluctant;	// doubling for stable restart
+#endif
   struct options options;	// a few runtime options
   struct averages averages;	// exponential moving averages
   struct statistics statistics;	// statistic counters
@@ -793,9 +797,9 @@ relative (double a, double b)
   stop_profiling (solver, &solver->profiles.NAME, process_time ())
 
 static void
-init_profiles (struct satch * solver)
+init_profiles (struct satch *solver)
 {
-  struct profiles * profiles = &solver->profiles;
+  struct profiles *profiles = &solver->profiles;
   profiles->end = profiles->begin;
 #define PROFILE(NAME) \
   profiles->NAME.name = #NAME;
@@ -804,9 +808,9 @@ init_profiles (struct satch * solver)
 }
 
 static void
-start_profiling (struct satch * solver, struct profile * profile)
+start_profiling (struct satch *solver, struct profile *profile)
 {
-  struct profiles * profiles = &solver->profiles;
+  struct profiles *profiles = &solver->profiles;
   const double start = process_time ();
   profile->start = start;
   assert (profiles->end < profiles->begin + MAX_PROFILES);
@@ -822,9 +826,9 @@ start_profiling (struct satch * solver, struct profile * profile)
 // principle it could be derived from the top of the profile stack.
 
 static double
-stop_profiling (struct satch * solver, struct profile * profile, double stop)
+stop_profiling (struct satch *solver, struct profile *profile, double stop)
 {
-  struct profiles * profiles = &solver->profiles;
+  struct profiles *profiles = &solver->profiles;
   assert (TOP (*profiles) == profile);
   const double time = stop - profile->start;
   profile->time += time;
@@ -838,9 +842,9 @@ stop_profiling (struct satch * solver, struct profile * profile, double stop)
 // argument to 'stop_profiling'.
 
 static double
-flush_profiles (struct satch * solver)
+flush_profiles (struct satch *solver)
 {
-  struct profiles * profiles = &solver->profiles;
+  struct profiles *profiles = &solver->profiles;
   const double stop = process_time ();
   while (!EMPTY (*profiles))
     stop_profiling (solver, TOP (*profiles), stop);
@@ -860,7 +864,7 @@ flush_profiles (struct satch * solver)
 // information might be particularly useful.
 
 static double
-print_profiles (struct satch * solver)
+print_profiles (struct satch *solver)
 {
   // First flush all timing information (pending profiles to be stopped).
   //
@@ -871,7 +875,7 @@ print_profiles (struct satch * solver)
   // Then add all profiles to the (pre-allocated!) profiles stack skipping
   // those without any time spent in it (unless verbose level is larger 1).
   //
-  struct profiles * profiles = &solver->profiles;
+  struct profiles *profiles = &solver->profiles;
   const bool verbose = solver->options.verbose > 1;
   assert (EMPTY (*profiles));
 #define PROFILE(NAME) \
@@ -886,16 +890,15 @@ do { \
 } while (0);
   PROFILES
 #undef PROFILE
-
-  // Sort profiles with respect to time used and name as tie breaker.
-  //
+    // Sort profiles with respect to time used and name as tie breaker.
+    //
   const size_t size = SIZE (*profiles);
   for (size_t i = 0; i < size; i++)
     {
-      struct profile * p = profiles->begin[i];
+      struct profile *p = profiles->begin[i];
       for (size_t j = i + 1; j < size; j++)
 	{
-	  struct profile * q = profiles->begin[j];
+	  struct profile *q = profiles->begin[j];
 	  if (p->time < q->time ||
 	      (p->time == q->time && strcmp (p->name, q->name) > 0))
 	    {
@@ -911,10 +914,10 @@ do { \
   const double total = profiles->total.time;
   for (size_t i = 0; i < size; i++)
     {
-      struct profile * p = profiles->begin[i];
+      struct profile *p = profiles->begin[i];
       printf ("c %14.2f  %6.2f %%  %s\n",
-              p->time, percent (p->time, total), p->name);
-              
+	      p->time, percent (p->time, total), p->name);
+
     }
   fputs ("c ============================================\n", stdout);
   printf ("c %14.2f  %6.2f %%  total\n", total, 100.0);
@@ -1052,7 +1055,7 @@ delete_clause (struct satch *solver, struct clause *c)
 {
   INC (deleted);
   LOGCLS (c, "delete");
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(NLEARN)
   for (all_literals_in_clause (lit, c))
     checker_add (solver->checker, export_literal (lit));
   checker_remove (solver->checker);
@@ -1548,7 +1551,7 @@ propagate_literal (struct satch *solver, unsigned lit)
 	  // literal' idea is to reduce the need for this costly pointer
 	  // dereference as much as possible.
 
-	  ticks++;	// We count these accesses.
+	  ticks++;		// We count these accesses.
 
 	  // The two watched literals of a clause are stored as first two
 	  // literals but we do not know at which position.  In order to
@@ -1800,7 +1803,7 @@ update_betas (struct satch *solver)
 }
 
 static void
-init_averages (struct satch * solver)
+init_averages (struct satch *solver)
 {
   solver->averages.slow_exp = 1.0;
 #ifndef NRESTART
@@ -2417,14 +2420,18 @@ restart (struct satch *solver)
 #ifndef NMODE
   if (solver->stable)
     {
-      interval = solver->limits.mode.restarts.inner;
-      solver->limits.mode.restarts.inner *= inner_outer_factor;
-      if (solver->limits.mode.restarts.inner > 
-	  solver->limits.mode.restarts.outer)
-	{
-	  solver->limits.mode.restarts.outer *= inner_outer_factor;
-	  solver->limits.mode.restarts.inner = inner_interval;
-	}
+      // This is the approach of Donald Knuth to compute the 'reluctant
+      // doubling' sequence. In other solvers it is called 'Luby' sequence.
+      // Then we use a much longer base interval than in focused mode.
+      //
+      struct reluctant *r = &solver->reluctant;
+      uint64_t u = r->u, v = r->v;
+      interval = v * stable_restart_interval;
+      if ((u & -u) == v)
+	u++, v = 1;
+      else
+	assert (UINT64_MAX / 2 >= v), v *= 2;
+      r->u = u, r->v = v;
     }
   else
 #endif
@@ -2708,7 +2715,7 @@ reduce (struct satch *solver)
 #ifndef NMODE
 
 static void
-start_mode (struct satch * solver)
+start_mode (struct satch *solver)
 {
   if (solver->stable)
     {
@@ -2723,7 +2730,7 @@ start_mode (struct satch * solver)
 }
 
 static void
-stop_mode (struct satch * solver)
+stop_mode (struct satch *solver)
 {
   if (solver->stable)
     {
@@ -2757,7 +2764,7 @@ switch_mode (struct satch *solver)
       solver->stable = false;
       assert (switched >= 2);
       assert (!(switched & 1));
-      const uint64_t conflicts = mode_interval * nlognlognlogn (switched/2);
+      const uint64_t conflicts = mode_interval * nlognlognlogn (switched / 2);
       solver->limits.mode.conflicts = CONFLICTS + conflicts;
       solver->limits.mode.ticks = TICKS;
     }
@@ -2767,8 +2774,7 @@ switch_mode (struct satch *solver)
       assert (TICKS <= solver->statistics.ticks);
       const uint64_t focused_ticks = TICKS - solver->limits.mode.ticks;
       solver->limits.mode.ticks = TICKS + focused_ticks;
-      solver->limits.mode.restarts.inner = inner_interval;
-      solver->limits.mode.restarts.outer = inner_interval;
+      solver->reluctant.u = solver->reluctant.v = 1;
     }
   start_mode (solver);
 }
@@ -2778,7 +2784,7 @@ switch_mode (struct satch *solver)
 /*------------------------------------------------------------------------*/
 
 static void
-init_limits (struct satch * solver)
+init_limits (struct satch *solver)
 {
 #ifndef NREDUCE
   solver->limits.reduce.conflicts = reduce_interval;
@@ -2980,6 +2986,9 @@ satch_release (struct satch *solver)
 #ifndef NDEBUG
   RELEASE (solver->added);
   RELEASE (solver->original);
+#ifndef NLEARN
+  checker_enable_leak_checking (solver->checker);
+#endif
   checker_release (solver->checker);
 #endif
   free (solver);
@@ -3081,7 +3090,7 @@ satch_add (struct satch *solver, int elit)
 	  if (size < added)
 	    {
 	      for (all_elements_on_stack (unsigned, lit, solver->clause))
-		checker_add (solver->checker, export_literal (lit));
+		  checker_add (solver->checker, export_literal (lit));
 	      checker_learned (solver->checker);
 
 	      remove_original_clause_from_checker = true;
@@ -3099,7 +3108,7 @@ satch_add (struct satch *solver, int elit)
       if (remove_original_clause_from_checker)
 	{
 	  for (all_elements_on_stack (int, lit, solver->added))
-	    checker_add (solver->checker, lit);
+	      checker_add (solver->checker, lit);
 	  checker_remove (solver->checker);
 	}
       CLEAR (solver->added);
@@ -3188,6 +3197,10 @@ satch_set_verbose_level (struct satch *solver, int new_verbose_level)
   REQUIRE_NON_ZERO_SOLVER ();
   if (new_verbose_level < 0)
     new_verbose_level = 0;
+#ifndef NDEBUG
+  if (!solver->options.verbose && new_verbose_level > 1)
+    checker_verbose (solver->checker);
+#endif
   solver->options.verbose = new_verbose_level;
 }
 
@@ -3212,14 +3225,14 @@ satch_process_time (void)
 }
 
 void
-satch_start_profiling_parsing(struct satch * solver)
+satch_start_profiling_parsing (struct satch *solver)
 {
   REQUIRE_NON_ZERO_SOLVER ();
   START (parse);
 }
 
 double
-satch_stop_profiling_parsing (struct satch * solver)
+satch_stop_profiling_parsing (struct satch *solver)
 {
   REQUIRE_NON_ZERO_SOLVER ();
   return STOP (parse);

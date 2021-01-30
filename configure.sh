@@ -17,6 +17,8 @@ where '<option>' is one of the following:
 --no-reduce       disable clause reduction (keep learned clauses forever)
 --no-restart      disable restarting (otherwise moving average based)
 --no-sort         disable sorting of bumped literals
+
+-f...             passed to compiler directly (like '-fsanitize=address')
 EOF
 }
 
@@ -98,12 +100,12 @@ COMPILE="$CC $CFLAGS"
 echo "$COMPILE"
 
 rm -f makefile
-sed -e "s,@COMPILE@,$COMPILE," makefile.in > makefile
+sed -e "s#@COMPILE@#$COMPILE#" makefile.in > makefile
 
 # Remove the proof checker dependencies in the generated 'makefile' if
 # checking is disabled.
 #
 if [ $check = no ]
 then
-  sed -i -e '/^catch.o:/d' -e 's, catch.o,,' makefile
+  sed -i -e '/^catch.o:/d' -e 's/ catch.o//' makefile
 fi

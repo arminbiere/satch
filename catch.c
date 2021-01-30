@@ -10,7 +10,12 @@
 // depends on the header-only-file implementation of a generic stack in
 // 'stack.h'. Therefore this checker can easily be used for other SAT
 // solvers by just linking against 'catch.o' and using the API in 'catch.h'.
-// A failure triggers a call to 'abort ()'.
+// A failure triggers a call to 'abort ()'.  For satisfiable instances we
+// also check at the very end (during 'checker_release') that all clauses
+// ever added which are not root-level satisfied have been removed.  This is
+// stronger than what is expected by DRUP/DRAT but useful to find clauses
+// that have been forgotten to be removed (from the checker or in general
+// have been 'lost').
 
 /*------------------------------------------------------------------------*/
 
@@ -18,6 +23,10 @@
 #include "stack.h"
 
 /*------------------------------------------------------------------------*/
+
+// We want to make the code more portable by keeping dependencies at a
+// minimum.  For instance we use 'size_t' and not 'uint64_t' for statistics
+// counters to avoid including '<stdint.h>' and '<intypes.h>' headers.
 
 #include <assert.h>
 #include <limits.h>
@@ -28,7 +37,11 @@
 
 /*------------------------------------------------------------------------*/
 
-#define INVALID UINT_MAX
+#define INVALID				UINT_MAX
+#define MAX_SIZE_T			(~(size_t)0)
+#define GARBAGE_COLLECTION_INTERVAL	10000
+
+/*------------------------------------------------------------------------*/
 
 static unsigned
 LITERAL (unsigned idx)
@@ -46,20 +59,35 @@ NOT (unsigned lit)
 
 struct clause
 {
-  struct clause *next[2];
-  unsigned size;
-  unsigned literals[];
+  struct clause *next[2];	// As in 'PicoSAT' and original 'Chaff'.
+  unsigned size;		// The size of the variadic literal array.
+  unsigned literals[];		// The actual literals of 'size'.
 };
 
 struct checker
 {
-  size_t size;
-  bool inconsistent;
-  signed char *marks;
-  signed char *values;
-  struct clause **watches;
-  struct unsigned_stack clause;
-  struct unsigned_stack trail;
+  size_t size;			// Number of allocated literals.
+  bool inconsistent;		// Empty clause added or learned.
+  signed char *marks;		// Mark bits for clause simplification
+  signed char *values;		// Values '-1', '0', '1'.
+  struct clause **watches;	// Singly linked lists through 'next'.
+
+  struct unsigned_stack trail;	// Partial assignment trail.
+  struct unsigned_stack clause;	// Temporary clause added or removed.
+
+  // Limits to control garbage collection frequency.
+  //
+  unsigned new_units;
+  size_t wait_to_collect_satisfied_clauses;
+
+  // Statistics
+  //
+  size_t original, learned, removed;
+  size_t collected, collections;
+  size_t clauses, remained;
+
+  int leak_checking;		// Enable leak checking at the end.
+  int verbose;			// Print (few) verbose messages.
 };
 
 /*------------------------------------------------------------------------*/
@@ -80,8 +108,10 @@ checker_fatal_error (const char *msg, ...)
   abort ();
 }
 
+#define checker_prefix "c [checker] "
+
 // The 'stack.h' code calls 'fatal_error' in case of out-of-memory and thus
-// we just define a macro to refer to the checker internal fatal error
+// we just define a macro to refer to the checker internal fatal-error
 // message.  Defining it here after 'stack.h' has been included above is
 // fine since 'stack.h' is only using macros to implement a stack.
 
@@ -98,6 +128,10 @@ do { \
   free (checker->NAME); \
   checker->NAME = chunk; \
 } while (0)
+
+// The importing and resizing code is slightly easier here since we do not
+// care about the actual number of variables but simply always increase the
+// size to match the largest literal we have seen (and its negation).
 
 static unsigned
 checker_import (struct checker *checker, int elit)
@@ -126,9 +160,14 @@ checker_import (struct checker *checker, int elit)
 
 /*------------------------------------------------------------------------*/
 
+// Trivial clauses are neither added nor removed.  A clause is trivial it if
+// contains two clashing literals or a literal assigned to true.
+
 static bool
 checker_trivial_clause (struct checker *checker)
 {
+  assert (EMPTY (checker->trail));	// Otherwise backtrack first.
+
   const signed char *values = checker->values;
   signed char *marks = checker->marks;
 
@@ -162,6 +201,8 @@ checker_trivial_clause (struct checker *checker)
   return trivial;
 }
 
+// Unmark the literals marked above.
+
 static void
 checker_clear_clause (struct checker *checker)
 {
@@ -180,6 +221,11 @@ checker_clear_clause (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
+// We do not need decision levels.  Everything on the trail is either
+// unassigned of if the propagation started from an added units all the
+// implied literals are permanently forced to that value.  In any case the
+// trail is kept empty after unit propagation completes.
+
 static void
 checker_assign (struct checker *checker, unsigned lit)
 {
@@ -193,6 +239,13 @@ checker_assign (struct checker *checker, unsigned lit)
   values[lit] = 1;
   PUSH (checker->trail, lit);
 }
+
+// This is a standard boolean constraint propagation until completion.  The
+// function returns false iff a conflict was found.  Otherwise watch lists
+// are used and updated.  The watching scheme follows the one from 'PicoSAT'
+// and the original 'Chaff' SAT solvers with two links in each clause for
+// the two watched literals at the first two positions.  Replacement of
+// watches is otherwise standard.  We do not use blocking literals though.
 
 static bool
 checker_propagate (struct checker *checker)
@@ -259,6 +312,8 @@ checker_propagate (struct checker *checker)
   return true;
 }
 
+// Backtracking just pop literals from the trail and unassigns them.
+
 static void
 checker_backtrack (struct checker *checker)
 {
@@ -275,13 +330,196 @@ checker_backtrack (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
+// We do not use a global stack of clauses and thus can only reach all
+// clauses through the watch lists.  For garbage collection as well as
+// deleting clause during releasing the checker we need to make sure not to
+// traverse deleted clauses though.  The strategy to avoid is we adopt is to
+// first disconnect from all clauses the second watch.  Then deleting
+// clauses can be done by following first watch links only.
+
+static void
+checker_disconnect_second_watch (struct checker *checker,
+				 unsigned lit, struct clause **p)
+{
+  struct clause *c;
+  while ((c = *p))
+    {
+      const unsigned pos = (c->literals[1] == lit);
+      assert (c->literals[pos] == lit);
+      if (pos)
+	{
+	  *p = c->next[1];
+#ifndef NDEBUG
+	  c->next[1] = 0;	// See assertion '(*)' below.
+#endif
+	}
+      else
+	p = &c->next[0];
+    }
+}
+
+// After deleting satisfied garbage collection during garbage collection we
+// need to watch the second literals in each clause again. This is slightly
+// more tricky since we the order in which we add those watches can be
+// random and thus when we traverse the first literal links we might
+// occasionally already use that literal as second watch in the watch list.
+// For 'checker_release_clauses' this is not possible.
+
+static void
+checker_reconnect_second_watch (struct checker *checker, unsigned lit,
+				struct clause ** watches)
+{
+  for (struct clause * c = watches[lit], * next; c; c = next)
+    {
+      if (c->literals[0] == lit)
+	{
+	  const unsigned other = c->literals[1];
+	  assert (!c->next[1]);
+	  c->next[1] = watches[other];
+	  watches[other] = c;
+	  next = c->next[0];
+	}
+      else
+	{
+	  assert (c->literals[1] == lit);
+	  next = c->next[1];
+	}
+    }
+}
+
+/*------------------------------------------------------------------------*/
+
+// While the two functions above work on watches of individual literals the
+// following two functions go over all literals (using the former though).
+
+static void
+checker_disconnect_all_second_watches (struct checker * checker)
+{
+  struct clause ** watches = checker->watches;
+  for (size_t lit = 0; lit < checker->size; lit++)
+    checker_disconnect_second_watch (checker, lit, watches + lit);
+}
+
+static void
+checker_reconnect_all_second_watches (struct checker * checker)
+{
+  struct clause ** watches = checker->watches;
+  for (size_t lit = 0; lit < checker->size; lit++)
+    checker_reconnect_second_watch (checker, lit, watches);
+}
+
+/*------------------------------------------------------------------------*/
+
+// We collect root-level satisfied clauses in garbage collections and need
+// to make sure not to thrash the checker with redundant work.  Thus we
+// delay garbage collection in arithmetically increasing intervals and also
+// only perform garbage collection if new units have been added since the
+// last garbage collection.
+
+static void
+checker_schedule_next_garbage_collection (struct checker * checker)
+{
+  const size_t collections = checker->collections;
+  size_t wait;
+  assert (GARBAGE_COLLECTION_INTERVAL);
+  if (MAX_SIZE_T / GARBAGE_COLLECTION_INTERVAL < collections)
+    wait = MAX_SIZE_T;
+  else
+    wait = collections * GARBAGE_COLLECTION_INTERVAL;
+  checker->new_units = 0;
+  checker->wait_to_collect_satisfied_clauses = wait;
+}
+
+// Similar code to the connect / reconnect for watches above.  We assume
+// that we only have first literals watched.  Then we can traverse those
+// first literal links and check a clause for being satisfied.  If we find a
+// satisfied clause we disconnect and delete it from the watch list.
+
+static size_t
+checker_flush_satisfied_clauses (struct checker * checker, unsigned lit,
+                                 struct clause ** const watches,
+				 const signed char * const values)
+{
+  struct clause ** p = watches + lit, * c;
+  size_t collected = 0;
+  while ((c = *p))
+    {
+      const unsigned * const literals = c->literals;
+      assert (literals[0] == lit);
+      const unsigned * const end = literals + c->size;
+      bool satisfied = false;
+      for (const unsigned * p = literals; !satisfied && p != end; p++)
+	{
+	  const unsigned other = *p;
+	  const signed char value = values[other];
+	  satisfied = (value > 0);
+	}
+      if (satisfied)
+	{
+	  collected++;
+	  *p = c->next[0];
+	  assert (checker->clauses);
+	  checker->clauses--;
+	  free (c);
+	}
+      else
+	p = c->next;
+    }
+  return collected;
+}
+
+// Applies the above function to all literals and collects and prints
+// statistics (the latter only if verbose messages are enabled).
+
+static void
+checker_flush_all_satisfied_clauses (struct checker * checker)
+{
+  assert (EMPTY (checker->trail));
+
+  size_t collected = 0;
+
+  struct clause ** const watches = checker->watches;
+  const signed char * const values = checker->values;
+
+  for (size_t lit = 0; lit < checker->size; lit++)
+    collected += checker_flush_satisfied_clauses (checker, lit,
+                                                  watches, values);
+  checker->collected += collected;
+
+  if (checker->verbose)
+    printf (checker_prefix "collected %zu satisfied clauses "
+	    "in garbage collection %zu\n", collected,
+	    checker->collections), fflush (stdout);
+}
+
+// The satisfied clause garbage collection function.
+
+static void
+checker_garbage_collection (struct checker *checker)
+{
+  checker->collections++;
+  checker_disconnect_all_second_watches (checker);
+  checker_flush_all_satisfied_clauses (checker);
+  checker_reconnect_all_second_watches (checker);
+  checker_schedule_next_garbage_collection (checker);
+}
+
+/*------------------------------------------------------------------------*/
+
+// Add and watch a clause unless the clause is actually empty or a unit
+// clause which then is propagated instead.  The user code is of course
+// allowed to add clauses which contain literals falsified by the checker
+// assignment but later might actually remove the as is (with the falsified
+// literals still in it).  Therefore we also add falsified literals,
+// otherwise we can not find the extended clause later.
+
 static void
 checker_add_clause (struct checker *checker)
 {
   const signed char *const values = checker->values;
 
-  const unsigned * const end = checker->clause.end;
-  unsigned * const begin = checker->clause.begin;
+  const unsigned *const end = checker->clause.end;
+  unsigned *const begin = checker->clause.begin;
   unsigned *q = begin;
 
   unsigned unit = INVALID;
@@ -314,8 +552,10 @@ checker_add_clause (struct checker *checker)
       assert (unit != INVALID);
       assert (unit == begin[0]);
       checker_assign (checker, unit);
+      assert (checker->new_units < UINT_MAX);
+      checker->new_units++;		// For garbage collection!
       if (checker_propagate (checker))
-	CLEAR (checker->trail);
+	CLEAR (checker->trail);		// We are done, reset trail!
       else
 	checker->inconsistent = true;
     }
@@ -333,6 +573,8 @@ checker_add_clause (struct checker *checker)
       struct clause *clause = malloc (bytes);
       if (!clause)
 	fatal_error ("out-of-memory allocating clause of size %zu", size);
+      assert (checker->clauses < MAX_SIZE_T);
+      checker->clauses++;
       struct clause **const watches = checker->watches;
       clause->next[0] = watches[lit];
       clause->next[1] = watches[other];
@@ -340,49 +582,105 @@ checker_add_clause (struct checker *checker)
       clause->size = size;
       memcpy (clause->literals, begin, size * sizeof (unsigned));
     }
+
+  if (checker->wait_to_collect_satisfied_clauses)
+    --checker->wait_to_collect_satisfied_clauses;
+
+  if (!checker->inconsistent && checker->new_units &&
+      !checker->wait_to_collect_satisfied_clauses)
+    checker_garbage_collection (checker);
 }
 
 /*------------------------------------------------------------------------*/
+
+// The remove function works in a similar way but uses marks flags set in
+// 'checker_trivial_clause' to compare clauses.  We try all literals which
+// is slightly redundant (a one watch scheme for finding the clause would be
+// enough).  In principle we could skip one literal (say the one with the
+// longest watch list).  On the other removing the clause requires to walk
+// that list anyhow, and thus this optimization does not give much.
 
 static void
 checker_remove_clause (struct checker *checker)
 {
-  struct clause *const *const watches = checker->watches;
-  signed char *marks = checker->marks;
-
   const size_t size = SIZE (checker->clause);
   assert (size < UINT_MAX);
 
+  struct clause ** const watches = checker->watches;
+  signed char *marks = checker->marks;
+
   for (all_elements_on_stack (unsigned, lit, checker->clause))
     {
-      struct clause * c, * next;
-      for (c = watches[lit]; c; c = next)
-	{
-	  const unsigned * const literals = c->literals;
-	  const unsigned pos = (literals[1] == lit);
-	  assert (literals[pos] == lit);
-	  next = c->next[pos];
+      // First search for the link 'cp' which points to the clause 'c' which
+      // matches the marked literals in the temporary clause.
+      //
+      struct clause ** cp, * c, ** cnext = 0;
 
-	  if (c->size != size)
+      for (cp = watches + lit; (c = *cp); cp = cnext)
+	{
+	  const unsigned * const clits = c->literals;
+	  const unsigned cpos = (clits[1] == lit);
+	  assert (clits[cpos] == lit);
+	  cnext = c->next + cpos;
+
+	  if (c->size != size)	// Size has to match.
 	    continue;
 
-	  const unsigned * const end = literals + c->size;
-	  const unsigned * p;
-	  for (p = literals; p != end; p++)
-	    if (!marks[*p])
-	      break;
+	  const unsigned *const cend = clits + c->size, * cq;
+	  for (cq = clits; cq != cend; cq++)
+	    if (!marks[*cq])
+	      break;		// Literal '*cq' not in temporary clause.
 
-	  if (p == end)
-	    break;
+	  if (cq != cend)	// Not all literals marked.
+	    continue;
+
+	  // Now 'c' has exactly the literals as the temporary clause.
+
+	  *cp = *cnext;		// Remove 'lit' watch on 'c'.
+
+	  const unsigned other = clits[!cpos]; // The other watched literal.
+
+	  // Then find the link 'dp' to 'c' but walking the watched list of
+	  // the other watched literal 'other' in 'c'.
+
+	  struct clause ** dp = watches + other, * d;
+
+	  while ((d = *dp) != c)
+	    {
+	      assert (d);	// The clause has to be found.
+
+	      const unsigned * const dlits = d->literals;
+	      const unsigned dpos = (dlits[1] == other);
+	      assert (dlits[dpos] == other);
+
+	      dp = d->next + dpos;
+	    }
+
+	  *dp = c->next[!cpos];	// Remove 'other' watch.
+
+	  assert (checker->clauses);
+	  checker->clauses--;
+
+	  free (c);
+
+	  return;
 	}
-      if (c)
-	return;
     }
 
-  fatal_error ("clause requested to delete not found");
+  fatal_error ("clause requested to remove not found");
 }
 
 /*------------------------------------------------------------------------*/
+
+// The most important function is at this point rather easy to implement.
+// It goes of the literals in the temporary clause and propagates their
+// negation (unless it is already assigned).  If the literal is true then
+// the clause is clearly satisfied and thus implied.  If it is false we can
+// skip it.  Otherwise we just assign the literal in the clause to false and
+// propagate.  If propagation fails (a conflict was found) 'failed' is set
+// to 'true as well and we proven that the temporary clause is unit implied.
+// If at the end no conflict was produced the clause is not unit implied and
+// we raise a fatal error message.
 
 static void
 check_clause_implied (struct checker *checker)
@@ -405,41 +703,36 @@ check_clause_implied (struct checker *checker)
       if (failed)
 	break;
     }
+
   if (!failed)
     fatal_error ("learned clause not implied");
+
   checker_backtrack (checker);
 }
 
 /*------------------------------------------------------------------------*/
 
 static void
-checker_disconnect_second_watch (struct checker *checker,
-				 unsigned lit, struct clause **p)
-{
-  struct clause *c;
-  while ((c = *p))
-    {
-      const unsigned pos = (c->literals[1] == lit);
-      assert (c->literals[pos] == lit);
-      if (pos)
-	{
-	  *p = c->next[1];
-#ifndef NDEBUG
-	  c->next[1] = 0;	// See assertion '(*)' below.
-#endif
-	}
-      else
-	p = &c->next[0];
-    }
-}
-
-static void
 checker_release_clauses (struct checker *checker, struct clause *c)
 {
+  const signed char * const values = checker->values;
+
+  if (!EMPTY (checker->trail))
+    checker_backtrack (checker);
+
   while (c)
     {
       struct clause *next = c->next[0];
       assert (!c->next[1]);
+      const unsigned * const literals = c->literals;
+      const unsigned * const end = literals + c->size;
+      bool satisfied = false;
+      for (const unsigned * p = literals; !satisfied && p != end; p++)
+	satisfied = (values[*p] > 0);
+      if (!satisfied)
+	checker->remained++;
+      assert (checker->clauses);
+      checker->clauses--;
       free (c);
       c = next;
     }
@@ -448,8 +741,7 @@ checker_release_clauses (struct checker *checker, struct clause *c)
 static void
 checker_release_all_clauses (struct checker *checker)
 {
-  for (size_t lit = 0; lit < checker->size; lit++)
-    checker_disconnect_second_watch (checker, lit, checker->watches + lit);
+  checker_disconnect_all_second_watches (checker);
   for (size_t lit = 0; lit < checker->size; lit++)
     checker_release_clauses (checker, checker->watches[lit]);
 }
@@ -484,7 +776,66 @@ checker_init (void)
   struct checker *checker = calloc (1, sizeof *checker);
   if (!checker)
     fatal_error ("out-of-memory allocating checker");
+  checker->wait_to_collect_satisfied_clauses = GARBAGE_COLLECTION_INTERVAL;
   return checker;
+}
+
+void
+checker_verbose (struct checker * checker)
+{
+  checker->verbose = 1;
+  printf (checker_prefix
+          "enabling verbose mode of internal proof checker\n");
+  fflush (stdout);
+}
+
+void
+checker_enable_leak_checking (struct checker * checker)
+{
+  checker->leak_checking = 1;
+  if (!checker->verbose)
+    return;
+  printf (checker_prefix
+          "enabling leak checking of internal proof checker\n");
+  fflush (stdout);
+}
+
+static double
+percent (double a, double b)
+{
+  return b ? 100.0 * a / b : 0;
+}
+
+static void
+checker_statistics (struct checker * checker)
+{
+  const size_t original = checker->original;
+  const size_t learned = checker->learned;
+  const size_t removed = checker->removed;
+  const size_t collected = checker->collected;
+  const size_t total = original + learned;
+
+  // *INDENT-OFF*
+  printf (checker_prefix
+          "added %zu original clauses %.0f%%\n"
+	  checker_prefix
+	  "checked %zu learned clauses %.0f%%\n"
+	  checker_prefix
+	  "found and removed %zu clauses %.0f%%\n"
+	  checker_prefix
+	  "collected %zu satisfied clauses %.0f%%\n"
+	  checker_prefix
+	  "triggered %zu garbage collections\n"
+	  checker_prefix
+	  "%zu clauses remained\n",
+	  original, percent (original, total),
+	  learned, percent (learned, total),
+	  removed, percent (removed, total),
+	  collected, percent (collected, total),
+	  checker->collections, checker->remained);
+  // *INDENT-ON*
+
+  fflush (stdout);
 }
 
 void
@@ -492,6 +843,10 @@ checker_release (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
   checker_release_all_clauses (checker);
+  if (checker->verbose)
+    checker_statistics (checker);
+  if (!checker->inconsistent && checker->leak_checking && checker->remained)
+    fatal_error ("%zu clauses remain", checker->remained);
   free (checker->marks);
   free (checker->values);
   free (checker->watches);
@@ -522,6 +877,7 @@ checker_original (struct checker *checker)
   REQUIRE_NON_ZERO_CHECKER ();
   if (checker->inconsistent)
     return;
+  checker->original++;
   if (!checker_trivial_clause (checker))
     checker_add_clause (checker);
   checker_clear_clause (checker);
@@ -533,6 +889,7 @@ checker_learned (struct checker *checker)
   REQUIRE_NON_ZERO_CHECKER ();
   if (checker->inconsistent)
     return;
+  checker->learned++;
   check_clause_implied (checker);
   if (!checker_trivial_clause (checker))
     checker_add_clause (checker);
@@ -545,6 +902,7 @@ checker_remove (struct checker *checker)
   REQUIRE_NON_ZERO_CHECKER ();
   if (checker->inconsistent)
     return;
+  checker->removed++;
   if (!checker_trivial_clause (checker))
     checker_remove_clause (checker);
   checker_clear_clause (checker);
