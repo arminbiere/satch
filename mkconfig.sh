@@ -28,9 +28,6 @@ satch_version (void)
 #ifdef NMINIMIZE
   "-minimize"
 #endif
-#ifdef NMODE
-  "-mode"
-#endif
 #ifdef NREDUCE
   "-reduce"
 #endif
@@ -39,6 +36,9 @@ satch_version (void)
 #endif
 #ifdef NSORT
   "-sort"
+#endif
+#ifdef NSTABLE
+  "-stable"
 #endif
   ;
 }
