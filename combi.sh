@@ -1,7 +1,14 @@
 #!/bin/sh
 
-options="default check debug symbols"
-options="$options nosort noblock nolearn noreduce norestart nomode"
+# 4-fold combinatorial testing of all configurations
+
+basic="default check debug symbols"
+features="sort block flex learn reduce restart stable"
+
+echo "basic: $basic"
+echo "features: $features"
+
+options="$basic `echo $features|sed -e 's,\<,no,g'`"
 
 failed () {
   echo
@@ -27,7 +34,7 @@ run () {
 filter () {
   case $1$2 in
     nolearnnoreduce) return 0;;
-    norestartnomode) return 0;;
+    norestartnostable) return 0;;
     *) return 1;;
   esac
 }

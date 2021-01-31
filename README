@@ -1,14 +1,16 @@
-This is the C source code of SATCH a SAT solver written from scratch.
+This is the source code of SATCH a SAT solver written from scratch in C.
 
-Its main purpose is to provide a simple code base for explaining and
-experimenting with SAT solvers. It is simpler than the source code CaDiCaL
-and particularly Kissat, while still including most important implementation
-aspects needed to obtain a state-of-the-art SAT solver.  Thus is also serves
-as a gentle introduction into the code base of CaDiCaL and Kissat.
+The main purpose of this solver is to provide a simple and clean code base
+for explaining and experimenting with SAT solvers. It is simpler than the
+source code of CaDiCaL and of Kissat in particular, while still featuring
+most important implementation techniques needed to obtain a state-of-the-art
+SAT solver (the current version still lacks preprocessing and incremental
+solving though).  Thus is also serves as a gentle introduction into the code
+base of CaDiCaL and Kissat.
 
 The code allows to switch off individual and more basic features at compile
-time by using different './configure.sh' options, such as for instance
-completely switching off clause learning with './configure.sh --no-learn'.
+time by using different './configure.sh' options. For instance completely
+disabling clause learning can be achieved with './configure.sh --no-learn'.
 This not only gives a clean separation of features in the code but also
 makes it easier to disable (through the C pre-processor) redundant not
 needed code anymore if a certain feature is disabled.

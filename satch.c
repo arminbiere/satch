@@ -55,13 +55,14 @@
 //
 //   NDEBUG    disable proof, witness and assertion checking
 //
-//   NBLOCK    disable blocking literals thus slows down propagation
+//   NBLOCK    disable blocking literals (thus slower propagation)
+//   NFLEX     disable embedding of literals as flexible array into clause
 //   NLEARN    disable keeping learned clauses (DPLL with backjumping)
 //   NMINIMIZE disable clause minimization during learning
-//   NMODE     disable switching between stable and focused mode
 //   NREDUCE   disable clause reduction completely (keep all clauses)
 //   NRESTART  disable restarts completely (moving average based)
-//   NSORT     disable heuristic which keeps bumped variables in order
+//   NSORT     disable sorting of bumped literals in focused mode
+//   NSTABLE   disable switching between stable and focused mode
 //   
 // While 'NDEBUG' is used frequently through-out the code the other macros
 // are only used to disable specific default features in order to run and
@@ -73,21 +74,22 @@
 // script would on purpose leave out the implied macro (and raise an error
 // message if both are used).
 
-// NRESTART implies NMODE
-
-#if defined(NRESTART) && !defined(NMODE)
-#define NMODE
-#endif
-
 // NLEARN implies NREDUCE
-
+//
 #if defined(NLEARN) && !defined(NREDUCE)
 #define NREDUCE
 #endif
 
 // NLEARN implies NMINMIZE
+//
 #if defined(NLEARN) && !defined(NMINIMIZE)
 #define NMINIMIZE
+#endif
+
+// NRESTART implies NSTABLE
+//
+#if defined(NRESTART) && !defined(NSTABLE)
+#define NSTABLE
 #endif
 
 /*------------------------------------------------------------------------*/
@@ -100,7 +102,7 @@
 #define fast_alpha		3e-2	// exponential moving average decay
 #define restart_interval	1	// basic (focused) restart interval
 #define restart_margin		1.25	// margin for fast_glue > slow_glue
-#ifndef NMODE
+#ifndef NSTABLE
 #define mode_interval		1e3	// mode switching conflict interval
 #define stable_restart_interval	1024	// basic stable restart interval
 #endif
@@ -219,8 +221,20 @@ struct clause
   bool redundant;		// redundant / learned (not irredundant)
   bool used;			// used since last clause reduction
   unsigned glue;		// glucose level (LBD)
-  unsigned size;		// size of variadic literals array
-  unsigned literals[];		// the actual literals (of length 'size') 
+  unsigned size;		// size of clause (number of literals)
+#ifndef NFLEX
+  // This default version embeds the literals directly into the clause.
+  // Then the literals follows the clause header directly in memory
+  // and thus makes the actual allocated bytes of a clause variadic.
+  // This language concept is called 'flexible array members' in C.
+  //
+  unsigned literals[];
+#else
+  // This version stores the literals separately which requires another
+  // pointer dereference accessing the literal. 
+  //
+  unsigned *literals;
+#endif
 };
 
 struct link			// Links for decision queue.
@@ -253,7 +267,7 @@ struct limits
 {
 #ifndef NRESTART
   uint64_t restart;		// Conflict limit on restarting.
-#ifndef NMODE
+#ifndef NSTABLE
   struct
   {
     uint64_t conflicts;		// Conflict limit on mode switching.
@@ -270,7 +284,7 @@ struct limits
 #endif
 };
 
-#ifndef NMODE
+#ifndef NSTABLE
 struct reluctant		// Reluctant doubling (by D. Knuth).
 {
   uint64_t u, v;
@@ -295,7 +309,7 @@ struct statistics		// Runtime statistics.
 #endif
 #ifndef NRESTART
   uint64_t restarts;		// Number of restarts.
-#ifndef NMODE
+#ifndef NSTABLE
   uint64_t switched;		// Number of mode switches.
 #endif
 #endif
@@ -398,7 +412,7 @@ struct satch
   int status;			// UNKNOWN, SATISFIABLE, UNSATISFIABLE
   bool inconsistent;		// empty clause found or derived
   bool iterate;			// report unit learned
-#ifndef NMODE
+#ifndef NSTABLE
   bool stable;			// stable mode (fewer restarts)
 #endif
   unsigned level;		// current decision level
@@ -426,11 +440,15 @@ struct satch
   struct clauses redundant;	// current redundant clauses
 #endif
   struct limits limits;		// limits on restart
-#ifndef NMODE
+#ifndef NSTABLE
   struct reluctant reluctant;	// doubling for stable restart
 #endif
   struct options options;	// a few runtime options
+#ifndef NSTABLE
+  struct averages averages[2];	// exponential moving averages
+#else
   struct averages averages;	// exponential moving averages
+#endif
   struct statistics statistics;	// statistic counters
   struct profiles profiles;	// built in run-time profiling
 #ifndef NDEBUG
@@ -964,7 +982,7 @@ print_statistics (struct satch *solver, double seconds)
 #ifndef NRESTART
   printf ("c " F1 " %" L2 PRIu64 " %" L3 ".2f interval\n", "restarts:",
 	  s.restarts, relative (s.conflicts, s.restarts));
-#ifndef NMODE
+#ifndef NSTABLE
   printf ("c " F1 " %" L2 PRIu64 " %" L3 ".2f interval\n", "switched:",
 	  s.switched, relative (s.conflicts, s.switched));
 #endif
@@ -1003,11 +1021,67 @@ export_literal (unsigned ilit)
 
 /*------------------------------------------------------------------------*/
 
+// Allocate the actual clause data memory and depending on whether we embed
+// the literals directly into the clause using a flexible array member just
+// allocate one chunk of memory or otherwise the literals separately.
+
+// Interestingly enough the number of bytes needed to store a clause of the
+// given size (and its literals) can be calculated with the following
+// identical code, even though for the non-embedded variant the result will
+// be bigger since it has to include the pointer to the actual literals.
+
 static size_t
 bytes_clause (size_t size)
 {
   return sizeof (struct clause) + size * sizeof (unsigned);
 }
+
+#ifndef NFLEX
+
+// The embedded variants just allocates one (smaller) chunk of memory.
+
+static struct clause *
+allocate_clause (size_t size)
+{
+  const size_t bytes = bytes_clause (size);
+  struct clause *res = malloc (bytes);
+  if (!res)
+    out_of_memory (bytes);
+  return res;
+}
+
+#else
+
+// The non-embedded variants has to allocate two memory blocks.
+
+static struct clause *
+allocate_clause (size_t size)
+{
+  const size_t header_bytes = sizeof (struct clause);
+  struct clause *res = malloc (header_bytes);
+  if (!res)
+    out_of_memory (header_bytes);
+  const size_t literals_bytes = size * sizeof (unsigned);
+  res->literals = malloc (literals_bytes);
+  if (!res->literals)
+    out_of_memory (literals_bytes);
+  return res;
+}
+
+#endif
+
+static size_t
+deallocate_clause (struct clause *c)
+{
+  size_t res = bytes_clause (c->size);
+#ifdef NFLEX
+  free (c->literals);
+#endif
+  free (c);
+  return res;
+}
+
+/*------------------------------------------------------------------------*/
 
 static struct clause *
 add_clause (struct satch *solver, bool redundant, unsigned glue)
@@ -1015,10 +1089,7 @@ add_clause (struct satch *solver, bool redundant, unsigned glue)
   const uint64_t added = INC (added);
   const size_t size = SIZE (solver->clause);
   assert (size > 1);
-  const size_t bytes = bytes_clause (size);
-  struct clause *res = malloc (bytes);
-  if (!res)
-    out_of_memory (bytes);
+  struct clause *res = allocate_clause (size);
   res->id = added;
   res->garbage = false;
   res->protected = false;
@@ -1060,13 +1131,11 @@ delete_clause (struct satch *solver, struct clause *c)
     checker_add (solver->checker, export_literal (lit));
   checker_remove (solver->checker);
 #endif
-  size_t bytes = bytes_clause (c->size);
   if (c->redundant)
     DEC (redundant);
   else
     DEC (irredundant);
-  free (c);
-  return bytes;
+  return deallocate_clause (c);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1754,6 +1823,22 @@ backtrack (struct satch *solver, unsigned new_level)
 
 const double slow_beta = 1.0 - slow_alpha;
 
+// We have two sets of independent averages for stable and focused mode.
+// During mode switching the 'stable' bit is flipped which makes the other
+// set of averages active.  However if stable mode is disabled we only have
+// one set of averages and only update and use that.  To hide this logic we
+// use the following function which returns the active set of averages.
+
+static struct averages *
+averages (struct satch *solver)
+{
+#ifndef NSTABLE
+  return solver->averages + solver->stable;
+#else
+  return &solver->averages;
+#endif
+}
+
 static void
 update_slow_average (double *average, unsigned value)
 {
@@ -1761,9 +1846,9 @@ update_slow_average (double *average, unsigned value)
 }
 
 static double
-unbiased_slow_average (struct satch *solver, double avg)
+unbiased_slow_average (struct averages *a, double avg)
 {
-  const double div = 1 - solver->averages.slow_exp;
+  const double div = 1 - a->slow_exp;
   return !div ? 0 : div == 1 ? avg : avg / div;
 }
 
@@ -1780,9 +1865,9 @@ update_fast_average (double *average, unsigned value)
 }
 
 static double
-unbiased_fast_average (struct satch *solver, double avg)
+unbiased_fast_average (struct averages *a, double avg)
 {
-  const double div = 1 - solver->averages.fast_exp;
+  const double div = 1 - a->fast_exp;
   return !div ? 0 : div == 1 ? avg : avg / div;
 }
 
@@ -1794,20 +1879,32 @@ unbiased_fast_average (struct satch *solver, double avg)
 static void
 update_betas (struct satch *solver)
 {
+  struct averages *a = averages (solver);
 #ifndef NRESTART
-  if (solver->averages.fast_exp)
-    solver->averages.fast_exp *= fast_beta;
+  if (a->fast_exp)
+    a->fast_exp *= fast_beta;
 #endif
-  if (solver->averages.slow_exp)
-    solver->averages.slow_exp *= slow_beta;
+  if (a->slow_exp)
+    a->slow_exp *= slow_beta;
+}
+
+static void
+init_one_set_of_averages (struct satch *solver, struct averages *a)
+{
+  a->slow_exp = 1.0;
+#ifndef NRESTART
+  a->fast_exp = 1.0;
+#endif
 }
 
 static void
 init_averages (struct satch *solver)
 {
-  solver->averages.slow_exp = 1.0;
-#ifndef NRESTART
-  solver->averages.fast_exp = 1.0;
+#ifndef NSTABLE
+  init_one_set_of_averages (solver, &solver->averages[0]);
+  init_one_set_of_averages (solver, &solver->averages[1]);
+#else
+  init_one_set_of_averages (solver, &solver->averages);
 #endif
 }
 
@@ -2038,22 +2135,23 @@ analyze (struct satch *solver, struct clause *conflict)
     }
   CLEAR (solver->blocks);
 
+  struct averages *a = averages (solver);
 #ifndef NRESTART
-  update_fast_average (&solver->averages.fast_glue, glue);
+  update_fast_average (&a->fast_glue, glue);
 #endif
-  update_slow_average (&solver->averages.slow_glue, glue);
-  update_slow_average (&solver->averages.conflict_level, conflict_level);
+  update_slow_average (&a->slow_glue, glue);
+  update_slow_average (&a->conflict_level, conflict_level);
   update_betas (solver);
 
   LOG ("determined jump level %u and glue %u", jump_level, glue);
   LOG ("exponential 'conflict_level' moving average %g",
-       unbiased_slow_average (solver, solver->averages.conflict_level));
+       unbiased_slow_average (a, a->conflict_level));
 #ifndef NRESTART
   LOG ("exponential 'fast_glue' moving average %g",
-       unbiased_fast_average (solver, solver->averages.fast_glue));
+       unbiased_fast_average (a, a->fast_glue));
 #endif
   LOG ("exponential 'slow_glue' moving average %g",
-       unbiased_slow_average (solver, solver->averages.slow_glue));
+       unbiased_slow_average (a, a->slow_glue));
 
 #ifndef NSORT
   sort_analyzed (solver);
@@ -2166,7 +2264,7 @@ decide (struct satch *solver)
 REPORT(seconds, "%.2f") \
 REPORT(MB, "%.0f") \
 REPORT(level, "%.0f") \
-REPORT_IF_MODE(switched, "%" PRIu64) \
+REPORT_IF_STABLE(switched, "%" PRIu64) \
 REPORT_IF_REDUCE(reductions, "%" PRIu64) \
 REPORT_IF_RESTART(restarts, "%" PRIu64) \
 REPORT(conflicts, "%" PRIu64) \
@@ -2194,10 +2292,10 @@ REPORT(remaining, "%.0f%%")
 #else
 #define REPORT_IF_REDUCE REPORT
 #endif
-#ifdef NMODE
-#define REPORT_IF_MODE DO_NO_REPORT
+#ifdef NSTABLE
+#define REPORT_IF_STABLE DO_NO_REPORT
 #else
-#define REPORT_IF_MODE REPORT
+#define REPORT_IF_STABLE REPORT
 #endif
 #define MAX_HEADER	3	// Number of header lines.
 #define MAX_LINE	256	// Maximum expected line length.
@@ -2213,11 +2311,11 @@ report (struct satch *solver, int type)
   // If you want to print a certain statistic you need to add a line to the
   // 'REPORTS' macro above but also define a matching local constant here.
 
+  struct averages *a = averages (solver);
   const double seconds = process_time ();
   const double MB = current_resident_set_size () / (double) (1 << 20);
-  const double level =
-    unbiased_slow_average (solver, solver->averages.conflict_level);
-#ifndef NMODE
+  const double level = unbiased_slow_average (a, a->conflict_level);
+#ifndef NSTABLE
   const uint64_t switched = solver->statistics.switched;
 #endif
 #ifndef NREDUCE
@@ -2230,8 +2328,7 @@ report (struct satch *solver, int type)
 #ifndef NLEARN
   const uint64_t redundant = solver->statistics.redundant;
 #endif
-  const double glue =
-    unbiased_slow_average (solver, solver->averages.slow_glue);
+  const double glue = unbiased_slow_average (a, a->slow_glue);
   const uint64_t irredundant = solver->statistics.irredundant;
   const unsigned variables = solver->statistics.active;
   double remaining = percent (variables, solver->size);
@@ -2356,7 +2453,7 @@ logn (uint64_t n)
   return log10 (n + 10);
 }
 
-#if !defined(NMODE)
+#if !defined(NSTABLE)
 
 static double
 nlognlognlogn (uint64_t n)
@@ -2381,7 +2478,13 @@ ndivlogn (uint64_t n)
 
 /*------------------------------------------------------------------------*/
 
-// Fast restarting using exponential moving averages.
+// Restarts are in principle triggered by restart intervals (measured in the
+// number of conflicts passed).   However in focused mode we use exponential
+// moving averages of the glucose level (glue) of learned clauses to
+// determine whether we are in a phase where those levels go downward or
+// increase.  If the glue goes down we do not restart but if it goes up,
+// that is the fast moving average is above a certain margin of the slower
+// moving average, we do restart.
 
 #ifndef NRESTART
 
@@ -2392,15 +2495,22 @@ restarting (struct satch *solver)
     return false;
   if (solver->limits.restart > CONFLICTS)
     return false;
-#ifndef NMODE
+
+#ifndef NSTABLE
+  // Use only (large) conflict intervals in stable mode to trigger restarts.
+  // However during computing the next restart limit below we use a
+  // reluctant doubling of the base restart interval (also called Luby).
+  //
   if (solver->stable)
     return true;
 #endif
-  const double fast =
-    unbiased_fast_average (solver, solver->averages.fast_glue);
-  const double slow =
-    unbiased_slow_average (solver, solver->averages.slow_glue);
+  struct averages *a = averages (solver);
+
+  const double fast = unbiased_fast_average (a, a->fast_glue);
+  const double slow = unbiased_slow_average (a, a->slow_glue);
+
   const double limit = restart_margin * slow;
+
   return fast > limit;
 }
 
@@ -2417,16 +2527,21 @@ restart (struct satch *solver)
   backtrack (solver, 0);
 
   uint64_t interval;
-#ifndef NMODE
+#ifndef NSTABLE
   if (solver->stable)
     {
       // This is the approach of Donald Knuth to compute the 'reluctant
       // doubling' sequence. In other solvers it is called 'Luby' sequence.
-      // Then we use a much longer base interval than in focused mode.
+      // We further use a much longer base interval than in focused mode.
       //
       struct reluctant *r = &solver->reluctant;
       uint64_t u = r->u, v = r->v;
+
+      // The base interval is multiplied with the reluctant doubling
+      // sequence number (1,2,1,1,2,4,1,1,2,4,8,1,1,2,1,1,2,4,1,1,...).
+      //
       interval = v * stable_restart_interval;
+
       if ((u & -u) == v)
 	u++, v = 1;
       else
@@ -2712,7 +2827,7 @@ reduce (struct satch *solver)
 
 /*------------------------------------------------------------------------*/
 
-#ifndef NMODE
+#ifndef NSTABLE
 
 static void
 start_mode (struct satch *solver)
@@ -2757,24 +2872,30 @@ static void
 switch_mode (struct satch *solver)
 {
   const uint64_t switched = INC (switched);
-
   stop_mode (solver);
   if (solver->stable)
     {
       solver->stable = false;
       assert (switched >= 2);
       assert (!(switched & 1));
+
       const uint64_t conflicts = mode_interval * nlognlognlogn (switched / 2);
       solver->limits.mode.conflicts = CONFLICTS + conflicts;
       solver->limits.mode.ticks = TICKS;
+
+      solver->limits.restart = CONFLICTS + restart_interval;
     }
   else
     {
       solver->stable = true;
+      assert ((switched & 1));
+
       assert (TICKS <= solver->statistics.ticks);
       const uint64_t focused_ticks = TICKS - solver->limits.mode.ticks;
       solver->limits.mode.ticks = TICKS + focused_ticks;
+
       solver->reluctant.u = solver->reluctant.v = 1;
+      solver->limits.restart = CONFLICTS + stable_restart_interval;
     }
   start_mode (solver);
 }
@@ -2791,7 +2912,7 @@ init_limits (struct satch *solver)
 #endif
 #ifndef NRESTART
   solver->limits.restart = restart_interval;
-#ifndef NMODE
+#ifndef NSTABLE
   assert (!solver->stable);
   solver->limits.mode.conflicts = mode_interval;
 #endif
@@ -2811,7 +2932,7 @@ solve (struct satch *solver)
   int res = solver->inconsistent ? 20 : 0;
   struct clause *conflict;
 
-#ifndef NMODE
+#ifndef NSTABLE
   start_mode (solver);
 #endif
   while (!res)
@@ -2832,7 +2953,7 @@ solve (struct satch *solver)
 #ifndef NRESTART
 	    if (restarting (solver))
 	      restart (solver);
-#ifndef NMODE
+#ifndef NSTABLE
 	    else if (switching (solver))
 	      switch_mode (solver);
 #endif
@@ -2844,7 +2965,7 @@ solve (struct satch *solver)
 	    decide (solver);
 	  }
       }
-#ifndef NMODE
+#ifndef NSTABLE
   stop_mode (solver);
 #endif
 

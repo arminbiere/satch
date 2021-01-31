@@ -12,11 +12,12 @@ where '<option>' is one of the following:
 -s | --symbols    include symbol table (forced by '-g')
                  
 --no-block        disable blocking literals (thus slower propagation)
+--no-flex         disable embedding literals as flexible array into clauses
 --no-learn        disable clause learning (do not add learned clauses)
---no-mode         disable switching between focused and stable mode
 --no-reduce       disable clause reduction (keep learned clauses forever)
 --no-restart      disable restarting (otherwise moving average based)
---no-sort         disable sorting of bumped literals
+--no-sort         disable sorting of bumped literals in focused mode
+--no-stable       disable switching between focused and stable mode
 
 -f...             passed to compiler directly (like '-fsanitize=address')
 EOF
@@ -32,38 +33,45 @@ check=no
 symbols=no
 
 block=yes
+flex=yes
 learn=yes
 minimize=yes
-mode=yes
 reduce=yes
 restart=yes
 sort=yes
+stable=yes
 
 options=""
 
 while [ $# -gt 0 ]
 do
   case $1 in
+
     --default) ;;
+
     -h|--help) usage; exit 0;;
     -g|--debug) debug=yes;;
     -c|--check) check=yes;;
     -s|--symbols) symbols=yes;;
+
     --no-block) block=no;;
+    --no-flex) flex=no;;
     --no-minimize) minimize=no;;
-    --no-mode) mode=no;;
     --no-learn) learn=no;;
     --no-reduce) reduce=no;;
     --no-restart) restart=no;;
     --no-sort) sort=no;;
+    --no-stable) stable=no;;
+
     -f*) options="$options $1";;
+
     *) die "invalid option '$1' (try '-h')";;
   esac
   shift
 done
 
-[ $restart = no -a $mode = no ] && \
-die "'--no-restart' implies '--no-mode'"
+[ $restart = no -a $stable = no ] && \
+die "'--no-restart' implies '--no-stable'"
 
 [ $learn = no -a $reduce = no ] && \
 die "'--no-learn' implies '--no-reduce'"
@@ -88,13 +96,14 @@ fi
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 CFLAGS="$CFLAGS$options"
 [ $block = no ] && CFLAGS="$CFLAGS -DNBLOCK"
+[ $flex = no ] && CFLAGS="$CFLAGS -DNFLEX"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $learn = no ] && CFLAGS="$CFLAGS -DNLEARN"
 [ $minimize = no ] && CFLAGS="$CFLAGS -DNMINIMIZE"
-[ $mode = no ] && CFLAGS="$CFLAGS -DNMODE"
 [ $reduce = no ] && CFLAGS="$CFLAGS -DNREDUCE"
 [ $restart = no ] && CFLAGS="$CFLAGS -DNRESTART"
 [ $sort = no ] && CFLAGS="$CFLAGS -DNSORT"
+[ $stable = no ] && CFLAGS="$CFLAGS -DNSTABLE"
 
 COMPILE="$CC $CFLAGS"
 echo "$COMPILE"

@@ -10,12 +10,17 @@ IDENTIFIER="`git show 2>/dev/null|awk '{print $2; exit}'`"
 cat <<EOF
 #include "satch.h"
 
+// The version number followed by disabled features (read '-' as '--no-').
+
 const char *
 satch_version (void)
 {
   return "$VERSION"
 #ifdef NBLOCK
   "-block"
+#endif
+#ifdef NFLEX
+  "-flex"
 #endif
 #ifdef NLEARN
   "-learn"

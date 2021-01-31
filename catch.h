@@ -22,7 +22,7 @@ void checker_verbose (struct checker *);
 // used to track down 'lost' clauses.  Lost or leaked clauses are not
 // seen by the solver anymore but the checker still has a copy of them.
 //
-void checker_enable_leak_checking (struct checker*);
+void checker_enable_leak_checking (struct checker *);
 
 /*------------------------------------------------------------------------*/
 

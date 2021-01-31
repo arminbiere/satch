@@ -367,9 +367,9 @@ checker_disconnect_second_watch (struct checker *checker,
 
 static void
 checker_reconnect_second_watch (struct checker *checker, unsigned lit,
-				struct clause ** watches)
+				struct clause **watches)
 {
-  for (struct clause * c = watches[lit], * next; c; c = next)
+  for (struct clause * c = watches[lit], *next; c; c = next)
     {
       if (c->literals[0] == lit)
 	{
@@ -393,17 +393,17 @@ checker_reconnect_second_watch (struct checker *checker, unsigned lit,
 // following two functions go over all literals (using the former though).
 
 static void
-checker_disconnect_all_second_watches (struct checker * checker)
+checker_disconnect_all_second_watches (struct checker *checker)
 {
-  struct clause ** watches = checker->watches;
+  struct clause **watches = checker->watches;
   for (size_t lit = 0; lit < checker->size; lit++)
     checker_disconnect_second_watch (checker, lit, watches + lit);
 }
 
 static void
-checker_reconnect_all_second_watches (struct checker * checker)
+checker_reconnect_all_second_watches (struct checker *checker)
 {
-  struct clause ** watches = checker->watches;
+  struct clause **watches = checker->watches;
   for (size_t lit = 0; lit < checker->size; lit++)
     checker_reconnect_second_watch (checker, lit, watches);
 }
@@ -417,7 +417,7 @@ checker_reconnect_all_second_watches (struct checker * checker)
 // last garbage collection.
 
 static void
-checker_schedule_next_garbage_collection (struct checker * checker)
+checker_schedule_next_garbage_collection (struct checker *checker)
 {
   const size_t collections = checker->collections;
   size_t wait;
@@ -436,19 +436,19 @@ checker_schedule_next_garbage_collection (struct checker * checker)
 // satisfied clause we disconnect and delete it from the watch list.
 
 static size_t
-checker_flush_satisfied_clauses (struct checker * checker, unsigned lit,
-                                 struct clause ** const watches,
-				 const signed char * const values)
+checker_flush_satisfied_clauses (struct checker *checker, unsigned lit,
+				 struct clause **const watches,
+				 const signed char *const values)
 {
-  struct clause ** p = watches + lit, * c;
+  struct clause **p = watches + lit, *c;
   size_t collected = 0;
   while ((c = *p))
     {
-      const unsigned * const literals = c->literals;
+      const unsigned *const literals = c->literals;
       assert (literals[0] == lit);
-      const unsigned * const end = literals + c->size;
+      const unsigned *const end = literals + c->size;
       bool satisfied = false;
-      for (const unsigned * p = literals; !satisfied && p != end; p++)
+      for (const unsigned *p = literals; !satisfied && p != end; p++)
 	{
 	  const unsigned other = *p;
 	  const signed char value = values[other];
@@ -472,18 +472,18 @@ checker_flush_satisfied_clauses (struct checker * checker, unsigned lit,
 // statistics (the latter only if verbose messages are enabled).
 
 static void
-checker_flush_all_satisfied_clauses (struct checker * checker)
+checker_flush_all_satisfied_clauses (struct checker *checker)
 {
   assert (EMPTY (checker->trail));
 
   size_t collected = 0;
 
-  struct clause ** const watches = checker->watches;
-  const signed char * const values = checker->values;
+  struct clause **const watches = checker->watches;
+  const signed char *const values = checker->values;
 
   for (size_t lit = 0; lit < checker->size; lit++)
     collected += checker_flush_satisfied_clauses (checker, lit,
-                                                  watches, values);
+						  watches, values);
   checker->collected += collected;
 
   if (checker->verbose)
@@ -553,9 +553,9 @@ checker_add_clause (struct checker *checker)
       assert (unit == begin[0]);
       checker_assign (checker, unit);
       assert (checker->new_units < UINT_MAX);
-      checker->new_units++;		// For garbage collection!
+      checker->new_units++;	// For garbage collection!
       if (checker_propagate (checker))
-	CLEAR (checker->trail);		// We are done, reset trail!
+	CLEAR (checker->trail);	// We are done, reset trail!
       else
 	checker->inconsistent = true;
     }
@@ -606,7 +606,7 @@ checker_remove_clause (struct checker *checker)
   const size_t size = SIZE (checker->clause);
   assert (size < UINT_MAX);
 
-  struct clause ** const watches = checker->watches;
+  struct clause **const watches = checker->watches;
   signed char *marks = checker->marks;
 
   for (all_elements_on_stack (unsigned, lit, checker->clause))
@@ -614,11 +614,11 @@ checker_remove_clause (struct checker *checker)
       // First search for the link 'cp' which points to the clause 'c' which
       // matches the marked literals in the temporary clause.
       //
-      struct clause ** cp, * c, ** cnext = 0;
+      struct clause **cp, *c, **cnext = 0;
 
       for (cp = watches + lit; (c = *cp); cp = cnext)
 	{
-	  const unsigned * const clits = c->literals;
+	  const unsigned *const clits = c->literals;
 	  const unsigned cpos = (clits[1] == lit);
 	  assert (clits[cpos] == lit);
 	  cnext = c->next + cpos;
@@ -626,7 +626,7 @@ checker_remove_clause (struct checker *checker)
 	  if (c->size != size)	// Size has to match.
 	    continue;
 
-	  const unsigned *const cend = clits + c->size, * cq;
+	  const unsigned *const cend = clits + c->size, *cq;
 	  for (cq = clits; cq != cend; cq++)
 	    if (!marks[*cq])
 	      break;		// Literal '*cq' not in temporary clause.
@@ -638,18 +638,18 @@ checker_remove_clause (struct checker *checker)
 
 	  *cp = *cnext;		// Remove 'lit' watch on 'c'.
 
-	  const unsigned other = clits[!cpos]; // The other watched literal.
+	  const unsigned other = clits[!cpos];	// The other watched literal.
 
 	  // Then find the link 'dp' to 'c' but walking the watched list of
 	  // the other watched literal 'other' in 'c'.
 
-	  struct clause ** dp = watches + other, * d;
+	  struct clause **dp = watches + other, *d;
 
 	  while ((d = *dp) != c)
 	    {
 	      assert (d);	// The clause has to be found.
 
-	      const unsigned * const dlits = d->literals;
+	      const unsigned *const dlits = d->literals;
 	      const unsigned dpos = (dlits[1] == other);
 	      assert (dlits[dpos] == other);
 
@@ -715,7 +715,7 @@ check_clause_implied (struct checker *checker)
 static void
 checker_release_clauses (struct checker *checker, struct clause *c)
 {
-  const signed char * const values = checker->values;
+  const signed char *const values = checker->values;
 
   if (!EMPTY (checker->trail))
     checker_backtrack (checker);
@@ -724,10 +724,10 @@ checker_release_clauses (struct checker *checker, struct clause *c)
     {
       struct clause *next = c->next[0];
       assert (!c->next[1]);
-      const unsigned * const literals = c->literals;
-      const unsigned * const end = literals + c->size;
+      const unsigned *const literals = c->literals;
+      const unsigned *const end = literals + c->size;
       bool satisfied = false;
-      for (const unsigned * p = literals; !satisfied && p != end; p++)
+      for (const unsigned *p = literals; !satisfied && p != end; p++)
 	satisfied = (values[*p] > 0);
       if (!satisfied)
 	checker->remained++;
@@ -781,22 +781,21 @@ checker_init (void)
 }
 
 void
-checker_verbose (struct checker * checker)
+checker_verbose (struct checker *checker)
 {
   checker->verbose = 1;
-  printf (checker_prefix
-          "enabling verbose mode of internal proof checker\n");
+  printf (checker_prefix "enabling verbose mode of internal proof checker\n");
   fflush (stdout);
 }
 
 void
-checker_enable_leak_checking (struct checker * checker)
+checker_enable_leak_checking (struct checker *checker)
 {
   checker->leak_checking = 1;
   if (!checker->verbose)
     return;
   printf (checker_prefix
-          "enabling leak checking of internal proof checker\n");
+	  "enabling leak checking of internal proof checker\n");
   fflush (stdout);
 }
 
@@ -807,7 +806,7 @@ percent (double a, double b)
 }
 
 static void
-checker_statistics (struct checker * checker)
+checker_statistics (struct checker *checker)
 {
   const size_t original = checker->original;
   const size_t learned = checker->learned;
