@@ -109,12 +109,13 @@ COMPILE="$CC $CFLAGS"
 echo "$COMPILE"
 
 rm -f makefile
-sed -e "s#@COMPILE@#$COMPILE#" makefile.in > makefile
+sed "s#@COMPILE@#$COMPILE#" makefile.in > makefile
 
 # Remove the proof checker dependencies in the generated 'makefile' if
 # checking is disabled.
 #
 if [ $check = no ]
 then
-  sed -i -e '/^catch.o:/d' -e 's/ catch.o//' makefile
+  sed -i '/^catch.o:/d' makefile
+  sed -i 's/ catch.o//' makefile
 fi

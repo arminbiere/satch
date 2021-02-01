@@ -17,8 +17,8 @@ failed () {
 }
 
 run () {
-  args="`echo $*|sed 's,default,,'|sed 's,\<,--,g' |sed 's,--no,--no-,g'`"
-  args="`echo $args|sed 's,-check,c,' |sed 's,-debug,g,' |sed 's,-symbols,s,'`"
+  args="`echo $*|sed 's,default,,'|sed 's,\<,--,g'|sed 's,--no,--no-,g'`"
+  args="`echo $args|sed 's,-check,c,'|sed 's,-debug,g,'|sed 's,-symbols,s,'`"
   command="./configure $args"
   echo -n $command
   $command 1>/dev/null 2>/dev/null || failed
