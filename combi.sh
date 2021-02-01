@@ -8,7 +8,7 @@ features="sort block flex learn reduce restart stable"
 echo "basic: $basic"
 echo "features: $features"
 
-options="$basic `echo $features|sed -e 's,\<,no,g'`"
+options="$basic `echo $features|sed 's,\<,no,g'`"
 
 failed () {
   echo
@@ -17,8 +17,8 @@ failed () {
 }
 
 run () {
-  args="`echo $*|sed -e 's,default,,' -e 's,\<,--,g' -e 's,--no,--no-,g'`"
-  args="`echo $args|sed -e 's,-check,c,' -e 's,-debug,g,' -e 's,-symbols,s,'`"
+  args="`echo $*|sed 's,default,,'|sed 's,\<,--,g' |sed 's,--no,--no-,g'`"
+  args="`echo $args|sed 's,-check,c,' |sed 's,-debug,g,' |sed 's,-symbols,s,'`"
   command="./configure $args"
   echo -n $command
   $command 1>/dev/null 2>/dev/null || failed
