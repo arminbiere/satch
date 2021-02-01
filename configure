@@ -116,6 +116,5 @@ sed "s#@COMPILE@#$COMPILE#" makefile.in > makefile
 #
 if [ $check = no ]
 then
-  sed -i '/^catch.o:/d' makefile
-  sed -i 's/ catch.o//' makefile
+  sed -i '/^catch.o:/d;s/ catch.o//' makefile
 fi

@@ -5,7 +5,7 @@ die () {
 }
 [ -f makefile ] || die "could not find 'makefile': run './configure' first"
 VERSION="`cat VERSION`"
-COMPILE="`sed '/^COMPILE/!d' makefile|sed 's,^COMPILE=,,'`"
+COMPILE="`sed '/^COMPILE/!d;^COMPILE=,,' makefile`"
 IDENTIFIER="`git show 2>/dev/null|awk '{print $2; exit}'`"
 cat <<EOF
 #include "satch.h"
