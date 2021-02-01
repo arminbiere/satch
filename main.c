@@ -28,9 +28,13 @@ static const char *usage =
 "  -l | --log           enable logging messages\n"
 #endif
 "\n"
+#ifdef _POSIX_C_SOURCE
 "where '<dimacs>' is an optionally compressed CNF in DIMACS format by\n"
 "default read from '<stdin>'.  For decompression the solver relies on\n"
 "external tools 'gzip', 'bunzip2' and 'xz' determined by the path suffix.\n"
+#else
+"where '<dimacs>' is a CNF in DIMACS format.\n"
+#endif
 ;
 
 // *INDENT-ON*
@@ -390,8 +394,10 @@ parse (void)
   if (close_file == 1)		// Opened with 'fopen'.
     fclose (file);
 
+#ifdef _POSIX_C_SOURCE
   if (close_file == 2)		// Opened with 'popen'.
     pclose (file);
+#endif
 
   message ("closed '%s'", path);
   message ("after reading %" PRIu64 " bytes (%.0f MB)",
@@ -455,6 +461,13 @@ file_readable (const char *path)
 
 /*------------------------------------------------------------------------*/
 
+// Without POSIX support (usually enabled through './configure --pedantic'
+// which in turn enforces '-Werror -std=c99 --pedantic' as compiler options)
+// we do not support compressed input files since 'popen' is missing.
+// Otherwise we rely on external decompression tools and a pipe.
+
+#ifdef _POSIX_C_SOURCE
+
 static bool
 has_suffix (const char *str, const char *suffix)
 {
@@ -476,6 +489,8 @@ open_pipe (const char *fmt)
   close_file = 2;		// Make sure to use 'pclose' on closing.
   free (cmd);
 }
+
+#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -500,7 +515,7 @@ SIGNAL(SIGTERM)
 // Saved previous signal handlers.
 
 #define SIGNAL(SIG) \
-static void (*saved_SIG ## _handler)(int);
+static void (*saved_ ## SIG ## _handler)(int);
 SIGNALS
 #undef SIGNAL
 
@@ -508,7 +523,7 @@ static void
 reset_signal_handler (void)
 {
 #define SIGNAL(SIG) \
-  signal (SIG, saved_SIG ## _handler);
+  signal (SIG, saved_ ## SIG ## _handler);
   SIGNALS
 #undef SIGNAL
 }
@@ -542,7 +557,7 @@ static void
 init_signal_handler (void)
 {
 #define SIGNAL(SIG) \
-  saved_SIG ##_handler = signal (SIG, catch_signal);
+  saved_ ## SIG ##_handler = signal (SIG, catch_signal);
   SIGNALS
 #undef SIGNAL
 }
@@ -599,6 +614,7 @@ main (int argc, char **argv)
 #endif
   if (!path)
     path = "<stdin>", file = stdin, assert (!close_file);
+#ifdef _POSIX_C_SOURCE
   else if (!file_readable (path))
     error ("can not access '%s'", path);
   else if (has_suffix (path, ".gz"))
@@ -607,6 +623,7 @@ main (int argc, char **argv)
     open_pipe ("bzip2 -c -d %s");
   else if (has_suffix (path, ".xz"))
     open_pipe ("xz -c -d %s");
+#endif
   else
     file = fopen (path, "r"), close_file = 1;
   if (!file)

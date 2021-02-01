@@ -8,8 +8,10 @@ where '<option>' is one of the following:
 
 -h | --help       print this command line option summary
 -g | --debug      include symbol table, logging and internal checking code
+
 -c | --check      include internal checking code (forced by '-g')
--s | --symbols    include symbol table (forced by '-g')
+-s | --symbols    include symbol table (forced by '-g' but useful without)
+-p | --pedantic   pedantic compilation ('-Werror -std=c99 --pedantic')
                  
 --no-block        disable blocking literals (thus slower propagation)
 --no-flex         disable embedding literals as flexible array into clauses
@@ -31,6 +33,7 @@ die () {
 debug=no
 check=no
 symbols=no
+pedantic=no
 
 block=yes
 flex=yes
@@ -50,9 +53,12 @@ do
     --default) ;;
 
     -h|--help) usage; exit 0;;
+
     -g|--debug) debug=yes;;
+
     -c|--check) check=yes;;
     -s|--symbols) symbols=yes;;
+    -p|--pedantic) pedantic=yes;;
 
     --no-block) block=no;;
     --no-flex) flex=no;;
@@ -70,18 +76,26 @@ do
   shift
 done
 
+[ $debug = yes -a $check = yes ] && \
+  die "'--debug' implies '--check'"
+
+[ $debug = yes -a $symbols = yes ] && \
+  die "'--debug' implies '--symbols'"
+
 [ $restart = no -a $stable = no ] && \
-die "'--no-restart' implies '--no-stable'"
+  die "'--no-restart' implies '--no-stable'"
 
 [ $learn = no -a $reduce = no ] && \
-die "'--no-learn' implies '--no-reduce'"
+  die "'--no-learn' implies '--no-reduce'"
 
 [ $learn = no -a $minimize = no ] && \
   die "'--no-learn' implies '--no-minimize'"
 
 CC=gcc
 
-CFLAGS="-Wall"
+CFLAGS="-W -Wall"
+[ $pedantic = yes ] && CFLAGS="$CFLAGS -Werror -std=c99 --pedantic"
+
 if [ $debug = yes ]
 then
   check=yes
@@ -109,6 +123,11 @@ COMPILE="$CC $CFLAGS"
 echo "$COMPILE"
 
 rm -f makefile
+sed "s#@COMPILE@#$COMPILE#" makefile.in > makefile
+
+# Remove the proof checker dependencies in the generated 'makefile' if
+# checking is disabled.
+#
 if [ $check = no ]
 then
   sed "s#@COMPILE@#$COMPILE#" makefile.in | \

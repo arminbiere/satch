@@ -338,8 +338,7 @@ checker_backtrack (struct checker *checker)
 // clauses can be done by following first watch links only.
 
 static void
-checker_disconnect_second_watch (struct checker *checker,
-				 unsigned lit, struct clause **p)
+checker_disconnect_second_watch (unsigned lit, struct clause **p)
 {
   struct clause *c;
   while ((c = *p))
@@ -366,8 +365,7 @@ checker_disconnect_second_watch (struct checker *checker,
 // For 'checker_release_clauses' this is not possible.
 
 static void
-checker_reconnect_second_watch (struct checker *checker, unsigned lit,
-				struct clause **watches)
+checker_reconnect_second_watch (unsigned lit, struct clause **watches)
 {
   for (struct clause * c = watches[lit], *next; c; c = next)
     {
@@ -397,7 +395,7 @@ checker_disconnect_all_second_watches (struct checker *checker)
 {
   struct clause **watches = checker->watches;
   for (size_t lit = 0; lit < checker->size; lit++)
-    checker_disconnect_second_watch (checker, lit, watches + lit);
+    checker_disconnect_second_watch (lit, watches + lit);
 }
 
 static void
@@ -405,7 +403,7 @@ checker_reconnect_all_second_watches (struct checker *checker)
 {
   struct clause **watches = checker->watches;
   for (size_t lit = 0; lit < checker->size; lit++)
-    checker_reconnect_second_watch (checker, lit, watches);
+    checker_reconnect_second_watch (lit, watches);
 }
 
 /*------------------------------------------------------------------------*/

@@ -71,8 +71,11 @@
 /*------------------------------------------------------------------------*/
 
 // The following checks are in essence documentation. The 'configure'
-// script would on purpose leave out the implied macro (and raise an error
-// message if both are used).
+// script would on purpose leave out the implied macro and raise a fatal
+// error if you try to use both. Beside documentation they also make sure
+// that compiling the solver directly without relying on 'configure' to
+// do sanity checking on the selected feature macros we still get a
+// consistent setting.
 
 // NLEARN implies NREDUCE
 //
@@ -96,26 +99,26 @@
 
 // Hard coded options for simplicity.
 
-#define slow_alpha		1e-5	// exponential moving average decay
+#define slow_alpha              1e-5	// exponential moving average decay
 
 #ifndef NRESTART
-#define fast_alpha		3e-2	// exponential moving average decay
-#define restart_interval	1	// basic (focused) restart interval
-#define restart_margin		1.25	// margin for fast_glue > slow_glue
+#define fast_alpha              3e-2	// exponential moving average decay
+#define restart_interval        1	// basic (focused) restart interval
+#define restart_margin          1.25	// margin for fast_glue > slow_glue
 #ifndef NSTABLE
-#define mode_interval		1e3	// mode switching conflict interval
-#define stable_restart_interval	1024	// basic stable restart interval
+#define mode_interval           1e3	// mode switching conflict interval
+#define stable_restart_interval 1024	// basic stable restart interval
 #endif
 #endif
 
 #ifndef NREDUCE
 #define reduce_fraction         0.75	// reduced number of clauses
-#define reduce_glue_limit	2	// kept glue limit
-#define reduce_interval  	300	// base reduce conflicts interval
+#define reduce_glue_limit       2	// kept glue limit
+#define reduce_interval         300	// base reduce conflicts interval
 #endif
 
 #ifndef NMINIMIZE
-#define minimize_depth		1e4	// recursive minimization depth
+#define minimize_depth          1e4	// recursive minimization depth
 #endif
 
 /*------------------------------------------------------------------------*/
@@ -223,6 +226,7 @@ struct clause
   unsigned glue;		// glucose level (LBD)
   unsigned size;		// size of clause (number of literals)
 #ifndef NFLEX
+  //
   // This default version embeds the literals directly into the clause.
   // Then the literals follows the clause header directly in memory
   // and thus makes the actual allocated bytes of a clause variadic.
@@ -230,6 +234,7 @@ struct clause
   //
   unsigned literals[];
 #else
+  //
   // This version stores the literals separately which requires another
   // pointer dereference accessing the literal. 
   //
@@ -263,6 +268,8 @@ struct watches			// Stack of watches.
   struct watch *begin, *end, *allocated;
 };
 
+#if !defined(NRESTART) || !defined(NREDUCE)
+
 struct limits
 {
 #ifndef NRESTART
@@ -283,6 +290,8 @@ struct limits
   } reduce;
 #endif
 };
+
+#endif
 
 #ifndef NSTABLE
 struct reluctant		// Reluctant doubling (by D. Knuth).
@@ -378,16 +387,16 @@ struct averages			// Exponential moving averages.
 // variations of some common code, that is compile time parameters of that
 // code.  Here for example the common code will be in the 'PROFILE' macro
 // (singular) which then is instantiated with its single parameter (we use
-// 'NAME') if just write 'PROFILES'.  The main point is that we can use that
-// parameter in 'PROFILE' at compile both as symbol as well as string (with
-// '#NAME'), or even generate new symbols (see 'SIGNALS' in 'main.c').
+// 'NAME') if just write 'PROFILES' (plural).  The point is that we can use
+// that parameter in 'PROFILE' at compile both as symbol as well as string
+// (with '#NAME'), or even generate new symbols (see 'SIGNALS' in 'main.c').
 
 #define PROFILES \
-PROFILE (focused) 		/* time spent in focused mode */ \
-PROFILE (parse) 		/* time spent parsing */ \
-PROFILE (solve) 		/* time spent solving */ \
-PROFILE (stable) 		/* time spent in stable mode */ \
-PROFILE (total)			/* total time spent */
+PROFILE (focused)               /* time spent in focused mode */ \
+PROFILE (parse)                 /* time spent parsing         */ \
+PROFILE (solve)                 /* time spent solving         */ \
+PROFILE (stable)                /* time spent in stable mode  */ \
+PROFILE (total)			/* total time spent           */
 
 struct profile
 {
@@ -395,7 +404,7 @@ struct profile
   const char *name;		// used in 'print_profiles'
 };				// initialized in 'init_profiles'
 
-#define MAX_PROFILES		16
+#define MAX_PROFILES            16
 
 struct profiles
 {
@@ -439,7 +448,9 @@ struct satch
 #ifndef NLEARN
   struct clauses redundant;	// current redundant clauses
 #endif
+#if !defined(NRESTART) || !defined(NREDUCE)
   struct limits limits;		// limits on restart
+#endif
 #ifndef NSTABLE
   struct reluctant reluctant;	// doubling for stable restart
 #endif
@@ -541,7 +552,7 @@ do { \
     ( \
       fflush (stdout), \
       fprintf (stderr, "%s:%ld: %s: Coverage goal `%s' reached.\n", \
-	__FILE__, (long) __LINE__, __func__, #COND), \
+        __FILE__, (long) __LINE__, __func__, #COND), \
       abort (), \
       (void) 0 \
     ) \
@@ -551,14 +562,18 @@ do { \
 
 /*------------------------------------------------------------------------*/
 
-// These declarations provide nice warnings messages if these functions have
-// a format string which does not match the type of one of its arguments.
+// These declarations provide nice warnings messages if these functions are
+// used with format string which does not match the type of an argument.
 
 static void fatal_error (const char *fmt, ...)
   __attribute__((format (printf, 1, 2)));
 
+#if !defined(NREDUCE) || !defined(NRESTART) || !defined(NSTABLE)
+
 static void message (struct satch *, unsigned, const char *fmt, ...)
   __attribute__((format (printf, 3, 4)));
+
+#endif
 
 #ifndef NDEBUG
 
@@ -597,6 +612,8 @@ out_of_memory (size_t bytes)
   fatal_error ("out-of-memory allocating %zu bytes", bytes);
 }
 
+#if !defined(NREDUCE) || !defined(NRESTART) || !defined(NSTABLE)
+
 static void
 message (struct satch *solver, unsigned level, const char *fmt, ...)
 {
@@ -610,6 +627,8 @@ message (struct satch *solver, unsigned level, const char *fmt, ...)
   fputc ('\n', stdout);
   fflush (stdout);
 }
+
+#endif
 
 // Print nicely formatted '---- [ <name> ] ----- ... ' section start line.
 
@@ -1889,7 +1908,7 @@ update_betas (struct satch *solver)
 }
 
 static void
-init_one_set_of_averages (struct satch *solver, struct averages *a)
+init_one_set_of_averages (struct averages *a)
 {
   a->slow_exp = 1.0;
 #ifndef NRESTART
@@ -1901,10 +1920,10 @@ static void
 init_averages (struct satch *solver)
 {
 #ifndef NSTABLE
-  init_one_set_of_averages (solver, &solver->averages[0]);
-  init_one_set_of_averages (solver, &solver->averages[1]);
+  init_one_set_of_averages (&solver->averages[0]);
+  init_one_set_of_averages (&solver->averages[1]);
 #else
-  init_one_set_of_averages (solver, &solver->averages);
+  init_one_set_of_averages (&solver->averages);
 #endif
 }
 
@@ -2297,9 +2316,9 @@ REPORT(remaining, "%.0f%%")
 #else
 #define REPORT_IF_STABLE REPORT
 #endif
-#define MAX_HEADER	3	// Number of header lines.
-#define MAX_LINE	256	// Maximum expected line length.
-#define MAX_REPORTS	16	// Maximum number of reported values.
+#define MAX_HEADER      3	// Number of header lines.
+#define MAX_LINE        256	// Maximum expected line length.
+#define MAX_REPORTS     16	// Maximum number of reported values.
   static void
 report (struct satch *solver, int type)
 {
@@ -2389,30 +2408,30 @@ report (struct satch *solver, int type)
 #define REPORT(NAME, FMT) \
       { \
         const int row = reported % MAX_HEADER; \
-	assert (end_header[row] < MAX_LINE); \
-	header[row][end_header[row]++] = ' '; \
-	assert (reported < num_reported); \
-	const int start = column[reported++]; \
-	const int end = \
-	  (reported == num_reported ? end_line : column[reported]); \
-	const int value_width = end - start - 1; \
-	const int name_width = strlen (#NAME); \
-	int target; \
-	if (name_width > value_width) \
-	  target = start - (name_width - value_width + 1)/2; \
-	else \
-	  target = start + (value_width - name_width + 1)/2; \
-	assert (target <= MAX_LINE); \
-	while (end_header[row] < target) \
-	  { \
-	    assert (end_header[row] < MAX_LINE); \
-	    header[row][end_header[row]++] = ' '; \
-	  } \
-	for (const char * p = #NAME; *p; p++) \
-	  { \
-	    assert (end_header[row] < MAX_LINE); \
-	    header[row][end_header[row]++] = *p; \
-	  } \
+        assert (end_header[row] < MAX_LINE); \
+        header[row][end_header[row]++] = ' '; \
+        assert (reported < num_reported); \
+        const int start = column[reported++]; \
+        const int end = \
+          (reported == num_reported ? end_line : column[reported]); \
+        const int value_width = end - start - 1; \
+        const int name_width = strlen (#NAME); \
+        int target; \
+        if (name_width > value_width) \
+          target = start - (name_width - value_width + 1)/2; \
+        else \
+          target = start + (value_width - name_width + 1)/2; \
+        assert (target <= MAX_LINE); \
+        while (end_header[row] < target) \
+          { \
+            assert (end_header[row] < MAX_LINE); \
+            header[row][end_header[row]++] = ' '; \
+          } \
+        for (const char * p = #NAME; *p; p++) \
+          { \
+            assert (end_header[row] < MAX_LINE); \
+            header[row][end_header[row]++] = *p; \
+          } \
       }
       REPORTS
 #undef REPORT
@@ -2755,7 +2774,7 @@ cmp_reduce_candidates (const void *p, const void *q)
 }
 
 static void
-sort_reduce_candidates (struct satch *solver, struct clauses *candidates)
+sort_reduce_candidates (struct clauses *candidates)
 {
   qsort (candidates->begin, SIZE (*candidates), sizeof (struct clause *),
 	 cmp_reduce_candidates);
@@ -2775,6 +2794,9 @@ mark_garbage_candidates (struct satch *solver, struct clauses *candidates)
       assert (!c->garbage);
       c->garbage = true;
     }
+#ifdef NDEBUG
+  (void) solver;		// Avoid warning for '-p' without '-g' nor '-l'.
+#endif
 }
 
 static void
@@ -2795,7 +2817,7 @@ reduce (struct satch *solver)
   struct clauses candidates;
   INIT (candidates);
   gather_reduce_candidates (solver, new_fixed_variables, &candidates);
-  sort_reduce_candidates (solver, &candidates);
+  sort_reduce_candidates (&candidates);
   mark_garbage_candidates (solver, &candidates);
   RELEASE (candidates);
 
@@ -2869,34 +2891,60 @@ switching (struct satch *solver)
 }
 
 static void
+switch_to_focused_mode (struct satch *solver, uint64_t switched)
+{
+  solver->stable = false;
+  assert (switched >= 2);
+  assert (!(switched & 1));
+
+  message (solver, 2, "[switch-%" PRIu64 "] "
+	   "limit of %" PRIu64 " ticks hit at %" PRIu64,
+	   switched, solver->limits.mode.ticks, TICKS);
+
+  const uint64_t conflicts = mode_interval * nlognlognlogn (switched / 2);
+  solver->limits.mode.conflicts = CONFLICTS + conflicts;
+  solver->limits.mode.ticks = TICKS;
+
+  solver->limits.restart = CONFLICTS + restart_interval;
+
+  message (solver, 2,
+	   "[switch-%" PRIu64 "] "
+	   "new limit of %" PRIu64 " conflicts after %" PRIu64,
+	   switched, solver->limits.mode.conflicts, conflicts);
+}
+
+static void
+switch_to_stable_mode (struct satch *solver, uint64_t switched)
+{
+  solver->stable = true;
+  assert ((switched & 1));
+
+  message (solver, 2, "[switch-%" PRIu64 "] "
+	   "limit of %" PRIu64 " conflicts hit at %" PRIu64,
+	   switched, solver->limits.mode.conflicts, CONFLICTS);
+
+  assert (TICKS <= solver->statistics.ticks);
+  const uint64_t focused_ticks = TICKS - solver->limits.mode.ticks;
+  solver->limits.mode.ticks = TICKS + focused_ticks;
+
+  solver->reluctant.u = solver->reluctant.v = 1;
+  solver->limits.restart = CONFLICTS + stable_restart_interval;
+
+  message (solver, 2,
+	   "[switch-%" PRIu64 "] "
+	   "new limit of %" PRIu64 " ticks after %" PRIu64,
+	   switched, solver->limits.mode.ticks, focused_ticks);
+}
+
+static void
 switch_mode (struct satch *solver)
 {
   const uint64_t switched = INC (switched);
   stop_mode (solver);
   if (solver->stable)
-    {
-      solver->stable = false;
-      assert (switched >= 2);
-      assert (!(switched & 1));
-
-      const uint64_t conflicts = mode_interval * nlognlognlogn (switched / 2);
-      solver->limits.mode.conflicts = CONFLICTS + conflicts;
-      solver->limits.mode.ticks = TICKS;
-
-      solver->limits.restart = CONFLICTS + restart_interval;
-    }
+    switch_to_focused_mode (solver, switched);
   else
-    {
-      solver->stable = true;
-      assert ((switched & 1));
-
-      assert (TICKS <= solver->statistics.ticks);
-      const uint64_t focused_ticks = TICKS - solver->limits.mode.ticks;
-      solver->limits.mode.ticks = TICKS + focused_ticks;
-
-      solver->reluctant.u = solver->reluctant.v = 1;
-      solver->limits.restart = CONFLICTS + stable_restart_interval;
-    }
+    switch_to_stable_mode (solver, switched);
   start_mode (solver);
 }
 
@@ -2916,6 +2964,9 @@ init_limits (struct satch *solver)
   assert (!solver->stable);
   solver->limits.mode.conflicts = mode_interval;
 #endif
+#endif
+#if defined(NRESTART) && defined(NREDUCE)
+  (void) solver;		// Avoid warning 'unused solver' warning with '-p'.
 #endif
 }
 
@@ -3274,6 +3325,12 @@ satch_val (struct satch *solver, int elit)
 {
   REQUIRE_NON_ZERO_SOLVER ();
   REQUIRE_NON_ZERO_VALID_LITERAL (elit);
+  REQUIRE (solver->status == 10,
+	   (solver->status == 20 ?
+	    "expected status to be '10' and not '20'" :
+	    !solver->status ?
+	    "expected status to be '10' and not '0'" :
+	    "expected status to be '10'"));
   int eidx = abs (elit);
   assert (eidx > 0);
   assert (eidx != INT_MIN);
@@ -3302,11 +3359,11 @@ satch_solve (struct satch *solver)
     section (solver, "solving");
   int res = solve (solver);
   LOG ("internal solving procedure returns '%d'", res);
+  solver->status = res;
 #ifndef NDEBUG
   if (res == 10)
     check_witness (solver);
 #endif
-  solver->status = res;
   return res;
 }
 
