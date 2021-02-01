@@ -6,7 +6,7 @@ die () {
 }
 
 [ -f satch ] || \
-   die "could not find 'satch': run './configure.sh && make' first"
+   die "could not find 'satch': run './configure && make' first"
 
 [ -f makefile ] || die "could not find 'makefile'"
 

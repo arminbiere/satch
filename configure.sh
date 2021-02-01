@@ -2,7 +2,7 @@
 
 usage () {
 cat <<EOF
-usage: configure.sh [ <option> ... ]
+usage: configure [ <option> ... ]
 
 where '<option>' is one of the following:
 
@@ -24,7 +24,7 @@ EOF
 }
 
 die () {
-  echo "configure.sh: error: $*" 1>&2
+  echo "configure: error: $*" 1>&2
   exit 1
 }
 

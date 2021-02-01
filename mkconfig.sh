@@ -3,7 +3,7 @@ die () {
   echo "mkconfig.sh: error: $*" 1>&2
   exit 1
 }
-[ -f makefile ] || die "could not find 'makefile': run './configure.sh' first"
+[ -f makefile ] || die "could not find 'makefile': run './configure' first"
 VERSION="`cat VERSION`"
 COMPILE="`sed -e '/^COMPILE/!d' -e 's,^COMPILE=,,' makefile`"
 IDENTIFIER="`git show 2>/dev/null|awk '{print $2; exit}'`"

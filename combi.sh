@@ -19,7 +19,7 @@ failed () {
 run () {
   args="`echo $*|sed -e 's,default,,' -e 's,\<,--,g' -e 's,--no,--no-,g'`"
   args="`echo $args|sed -e 's,-check,c,' -e 's,-debug,g,' -e 's,-symbols,s,'`"
-  command="./configure.sh $args"
+  command="./configure $args"
   echo -n $command
   $command 1>/dev/null 2>/dev/null || failed
   echo -n " && make"

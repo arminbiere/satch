@@ -13,7 +13,7 @@
 // 'satch_enable_logging_messages' then.
 
 // So again, if you do not want to use our build set-up (including
-// './configure.sh') but just want to compile against this file instead of
+// './configure') but just want to compile against this file instead of
 // linking against the library and do not need proof checking in 'catch.c'
 // (because you are not working on the 'satch' library itself) then just
 // define 'NDEBUG' by for instance using '-DNDEBUG' as compiler option to
@@ -49,7 +49,7 @@
 
 // The library has the following configuration parameters in form of compile
 // time macros, which disable or enable certain features through arguments
-// to './configure.sh'.  As with the common 'NDEBUG' macro we use negated
+// to './configure'.  As with the common 'NDEBUG' macro we use negated
 // semantics, i.e., defining the macro disables the feature (since for
 // instance the 'N' in 'NDEBUG' means [N]o debugging - see 'man assert').
 //
@@ -70,7 +70,7 @@
 
 /*------------------------------------------------------------------------*/
 
-// The following checks are in essence documentation. The 'configure.sh'
+// The following checks are in essence documentation. The 'configure'
 // script would on purpose leave out the implied macro (and raise an error
 // message if both are used).
 
@@ -1914,7 +1914,7 @@ init_averages (struct satch *solver)
 // stamp makes sure that they keep the same relative order after bumping
 // which empirically improves the effectiveness of the decision heuristic
 // (less conflicts).  You can disable this optimization at run-time by
-// configuring with './configure.sh --no-sorting'.  By default
+// configuring with './configure --no-sorting'.  By default
 // 'NSORT' is undefined and thus this sorting heuristic is used.
 
 #ifndef NSORT
