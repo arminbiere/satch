@@ -35,7 +35,7 @@ The source of the application and library consists of the following:
 The rest are files used by the build process:
                
   VERSION       current version
-  configure  configuration utility
+  configure     configuration utility
   makefile.in   makefile template used by 'configure'
   makefile      generated from 'makefile.in' by 'configure'
   mkconfig.sh   generates 'config.c' to provide build information
