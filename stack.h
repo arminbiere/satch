@@ -1,11 +1,17 @@
+/*------------------------------------------------------------------------*/
+//   Copyright (c) 2021, Armin Biere, Johannes Kepler University Linz     //
+/*------------------------------------------------------------------------*/
+
 #ifndef _stack_h_INCLUDED
 #define _stack_h_INCLUDED
 
 // Generic stack implementation similar to 'std::vector' API in C++.
 // In order to use it you need to provide 'fatal_error' below which could
 // also be a local macro in the user compilation unit since this
-// implementation here is header only and also only uses macros (beside type
-// issue this part would also not be that easy with inline functions).
+// implementation here is header only and only uses macros. Because of type
+// issues this part would not be that simple with inlined functions.
+
+/*------------------------------------------------------------------------*/
 
 #include <stdlib.h>		// For 'size_t', 'realloc', 'free'.
 
@@ -18,10 +24,16 @@
 
 /*------------------------------------------------------------------------*/
 
+// Computing sizes and capacity (stacks grow dynamically and need an
+// exponential increase of allocation size in order to remain linear).
+
 #define SIZE(S) ((size_t) ((S).end - (S).begin))
 #define CAPACITY(S) ((size_t) ((S).allocated - (S).begin))
 
 /*------------------------------------------------------------------------*/
+
+// If you want to understand the reason for this style of macros see the
+// corresponding explanations (before 'DEC' and 'INC') in 'satch.c.'
 
 #define INIT(S) \
 do { \
@@ -76,7 +88,11 @@ do { \
 
 /*------------------------------------------------------------------------*/
 
-// Access least recently added 'last' element of stack.
+// Access least recently added element of stack (here we differ from
+// 'stl::vector' terminology in C++ where 'TOP' would be 'last' and
+// 'pop_last' corresponding to 'POP' does not return a value).  In both
+// cases we make use of the fact that 'assert' has 'void' type.  If you want
+// to understand how this is possible for a macro see 'COVER' in 'satch.c'.
 
 #define TOP(S) \
   (assert (!EMPTY (S)), (S).end[-1])

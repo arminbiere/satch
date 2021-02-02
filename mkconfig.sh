@@ -19,8 +19,8 @@ satch_version (void)
 #ifdef NBLOCK
   "-block"
 #endif
-#ifdef NFLEX
-  "-flex"
+#ifdef NCOMPACT
+  "-compact"
 #endif
 #ifdef NLEARN
   "-learn"
@@ -39,6 +39,9 @@ satch_version (void)
 #endif
 #ifdef NSTABLE
   "-stable"
+#endif
+#ifdef NVARIADIC
+  "-variadic"
 #endif
   ;
 }

@@ -14,12 +14,13 @@ where '<option>' is one of the following:
 -p | --pedantic   pedantic compilation ('-Werror -std=c99 --pedantic')
                  
 --no-block        disable blocking literals (thus slower propagation)
---no-flex         disable embedding literals as flexible array into clauses
+--no-compact      disable compact watch data structures (slower + more space)
 --no-learn        disable clause learning (do not add learned clauses)
 --no-reduce       disable clause reduction (keep learned clauses forever)
 --no-restart      disable restarting (otherwise moving average based)
 --no-sort         disable sorting of bumped literals in focused mode
 --no-stable       disable switching between focused and stable mode
+--no-variadic     disable embedding literals as variadic array into clauses
 
 -f...             passed to compiler directly (like '-fsanitize=address')
 EOF
@@ -36,13 +37,14 @@ symbols=no
 pedantic=no
 
 block=yes
-flex=yes
+compact=yes
 learn=yes
 minimize=yes
 reduce=yes
 restart=yes
 sort=yes
 stable=yes
+variadic=yes
 
 options=""
 
@@ -61,13 +63,14 @@ do
     -p|--pedantic) pedantic=yes;;
 
     --no-block) block=no;;
-    --no-flex) flex=no;;
+    --no-compact) compact=no;;
     --no-minimize) minimize=no;;
     --no-learn) learn=no;;
     --no-reduce) reduce=no;;
     --no-restart) restart=no;;
     --no-sort) sort=no;;
     --no-stable) stable=no;;
+    --no-variadic) variadic=no;;
 
     -f*) options="$options $1";;
 
@@ -82,14 +85,17 @@ done
 [ $debug = yes -a $symbols = yes ] && \
   die "'--debug' implies '--symbols'"
 
-[ $restart = no -a $stable = no ] && \
-  die "'--no-restart' implies '--no-stable'"
+[ $block = no -a $compact = no ] && \
+  die "'--no-block' implies '--no-compact'"
 
 [ $learn = no -a $reduce = no ] && \
   die "'--no-learn' implies '--no-reduce'"
 
 [ $learn = no -a $minimize = no ] && \
   die "'--no-learn' implies '--no-minimize'"
+
+[ $restart = no -a $stable = no ] && \
+  die "'--no-restart' implies '--no-stable'"
 
 CC=gcc
 
@@ -110,7 +116,7 @@ fi
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 CFLAGS="$CFLAGS$options"
 [ $block = no ] && CFLAGS="$CFLAGS -DNBLOCK"
-[ $flex = no ] && CFLAGS="$CFLAGS -DNFLEX"
+[ $compact = no ] && CFLAGS="$CFLAGS -DNCOMPACT"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $learn = no ] && CFLAGS="$CFLAGS -DNLEARN"
 [ $minimize = no ] && CFLAGS="$CFLAGS -DNMINIMIZE"
@@ -118,6 +124,7 @@ CFLAGS="$CFLAGS$options"
 [ $restart = no ] && CFLAGS="$CFLAGS -DNRESTART"
 [ $sort = no ] && CFLAGS="$CFLAGS -DNSORT"
 [ $stable = no ] && CFLAGS="$CFLAGS -DNSTABLE"
+[ $variadic = no ] && CFLAGS="$CFLAGS -DNVARIADIC"
 
 COMPILE="$CC $CFLAGS"
 echo "$COMPILE"

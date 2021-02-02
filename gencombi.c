@@ -39,13 +39,15 @@ static const char * usage =
 
 static const char *options[] = {
   "--pedantic", "--debug", "--check", "--symbols",
-  "--no-sort", "--no-block", "--no-flex", "--no-learn", "--no-reduce",
-  "--no-restart", "--no-stable", 0
+  "--no-sort", "--no-block", "--no-compact", "--no-learn",
+  "--no-reduce", "--no-restart", "--no-stable", "--no-variadic",
+  0
 };
 
 static const char *incompatible[] = {
   "--check", "--debug",
   "--debug", "--symbols",
+  "--no-block", "--no-compact",
   "--no-learn", "--no-reduce",
   "--no-restart", "--no-stable",
   0,

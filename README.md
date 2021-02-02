@@ -1,7 +1,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://travis-ci.com/arminbiere/satch.svg?branch=master)](https://travis-ci.com/arminbiere/satch)
 
-SATCH Sat Solver
+Sat Solver SATCH
 ================
 
 This is the source code of SATCH a SAT solver written from scratch in C.
@@ -103,5 +103,5 @@ which covers all valid pairs of options and at the same time makes sure that
 there is a configuration which does not contain it.  It is also executed
 by the 'pairwise' make goal which also triggers the last command.
  
-Armin Biere
+Armin Biere  
 February 2021

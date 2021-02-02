@@ -3,7 +3,7 @@
 # 4-fold combinatorial testing of all configurations
 
 basic="default pedantic debug check symbols"
-features="sort block flex learn reduce restart stable"
+features="sort block compact learn reduce restart stable variadic"
 
 echo "basic: $basic"
 echo "features: $features"
@@ -26,6 +26,7 @@ filter () {
   case $1$2 in
     debugcheck) filtered=yes;;
     debugsymbols) filtered=yes;;
+    noblocknocompact) filtered=yes;;
     nolearnnoreduce) filtered=yes;;
     norestartnostable) filtered=yes;;
   esac
