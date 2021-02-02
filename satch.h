@@ -13,6 +13,10 @@
 
 /*------------------------------------------------------------------------*/
 
+#include <stdio.h>
+
+/*------------------------------------------------------------------------*/
+
 // SAT competition conformant exit codes used for 'satch_solve'.
 
 #define UNKNOWN 0
@@ -40,9 +44,7 @@ int satch_val (struct satch *, int);	// Get value of literal.
 //
 void satch_reserve (struct satch *, int max_var);
 
-// Return the largest active variable.
-//
-int satch_maximum_variable (struct satch *);
+/*------------------------------------------------------------------------*/
 
 // By default the library does not print any messages (the solver binary
 // however does switch on 'verbose' messages by default unless '-q' is
@@ -54,6 +56,14 @@ void satch_set_verbose_level (struct satch *, int level);
 void satch_enable_logging_messages (struct satch *);
 #endif
 
+void satch_trace_proof (struct satch *, FILE *);
+
+/*------------------------------------------------------------------------*/
+
+// Return the largest active variable.
+//
+int satch_maximum_variable (struct satch *);
+
 // Get process time used by the current process.
 //
 double satch_process_time (void);
@@ -61,7 +71,6 @@ double satch_process_time (void);
 // Print a nicely formatted 'c ---- [ <name> ] ---- ....' section header.
 //
 void satch_section (struct satch *, const char *name);
-
 
 // Print statistics and resource usage.
 //

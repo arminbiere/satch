@@ -546,10 +546,11 @@ struct satch
   struct statistics statistics;	// statistic counters
   struct profiles profiles;	// built in run-time profiling
 #ifndef NDEBUG
-  struct int_stack added;	// added external clause
   struct int_stack original;	// copy of all original clauses
   struct checker *checker;	// internal proof checker
 #endif
+  struct int_stack added;	// added external clause
+  FILE *proof;			// trace to this file if non-zero
 };
 
 /*------------------------------------------------------------------------*/
@@ -1190,8 +1191,6 @@ print_resource_usage (struct satch *solver, double seconds)
 
 // Export internal unsigned literals as external signed literals.
 
-#ifndef NDEBUG
-
 static unsigned
 export_literal (unsigned ilit)
 {
@@ -1202,7 +1201,40 @@ export_literal (unsigned ilit)
   return elit;
 }
 
-#endif
+/*------------------------------------------------------------------------*/
+
+static void
+start_addition_proof_line (struct satch *solver)
+{
+  (void) solver;
+}
+
+static void
+start_deletion_proof_line (struct satch *solver)
+{
+  assert (solver->proof);
+  fputs ("d ", solver->proof);
+}
+
+static void
+add_external_literal_to_proof_line (struct satch *solver, int elit)
+{
+  assert (solver->proof);
+  fprintf (solver->proof, "%d ", elit);
+}
+
+static void
+add_internal_literal_to_proof_line (struct satch *solver, unsigned ilit)
+{
+  add_external_literal_to_proof_line (solver, export_literal (ilit));
+}
+
+static void
+end_proof_line (struct satch *solver)
+{
+  assert (solver->proof);
+  fputs ("0\n", solver->proof);
+}
 
 /*------------------------------------------------------------------------*/
 
@@ -1318,6 +1350,13 @@ delete_clause (struct satch *solver, struct clause *c)
 {
   INC (deleted);
   LOGCLS (c, "delete");
+  if (solver->proof)
+    {
+      start_deletion_proof_line (solver);
+      for (all_literals_in_clause (lit, c))
+	add_internal_literal_to_proof_line (solver, lit);
+      end_proof_line (solver);
+    }
 #if !defined(NDEBUG) && !defined(NLEARN)
   for (all_literals_in_clause (lit, c))
     checker_add (solver->checker, export_literal (lit));
@@ -1518,6 +1557,13 @@ delete_binary (struct satch *solver,
     return;
 
   LOGBIN (redundant, lit, other, "delete");
+  if (solver->proof)
+    {
+      start_deletion_proof_line (solver);
+      add_internal_literal_to_proof_line (solver, lit);
+      add_internal_literal_to_proof_line (solver, other);
+      end_proof_line (solver);
+    }
 #if !defined(NDEBUG) && !defined(NLEARN)
   checker_add (solver->checker, export_literal (lit));
   checker_add (solver->checker, export_literal (other));
@@ -2425,6 +2471,11 @@ analyze (struct satch *solver, struct clause *conflict)
     {
       LOG ("learned empty clause");
       solver->inconsistent = true;
+      if (solver->proof)
+	{
+	  start_addition_proof_line (solver);
+	  end_proof_line (solver);
+	}
 #ifndef NDEBUG
       checker_learned (solver->checker);
 #endif
@@ -2618,6 +2669,13 @@ analyze (struct satch *solver, struct clause *conflict)
       assign (solver, not_uip, learned);
     }
 
+  if (solver->proof)
+    {
+      start_addition_proof_line (solver);
+      for (all_elements_on_stack (unsigned, lit, solver->clause))
+	  add_internal_literal_to_proof_line (solver, lit);
+      end_proof_line (solver);
+    }
 #ifndef NDEBUG
   for (all_elements_on_stack (unsigned, lit, solver->clause))
       checker_add (solver->checker, export_literal (lit));
@@ -3585,6 +3643,7 @@ satch_release (struct satch *solver)
   free (solver->frames);
   free (solver->reasons);
   free (solver->trail.begin);
+  solver->proof = 0;
   for (all_literals (lit))
     {
       struct watches *watches = solver->watches + lit;
@@ -3657,17 +3716,18 @@ satch_add (struct satch *solver, int elit)
       //
       const unsigned ilit = import_literal (solver, elit);
       PUSH (solver->clause, ilit);
+      PUSH (solver->added, elit);
 #ifndef NDEBUG
       checker_add (solver->checker, elit);
-      PUSH (solver->added, elit);
 #endif
     }
   else
     {
 #ifndef NDEBUG
       checker_original (solver->checker);
-      bool remove_original_clause_from_checker;
 #endif
+      bool remove_original_clause;
+
       // First check whether the imported clause is already (root-level)
       // satisfied or trivial (contains both a literal and its negation).
       // During this check falsified and duplicated literals are removed.
@@ -3730,35 +3790,47 @@ satch_add (struct satch *solver, int elit)
 	      LOGCLS (clause, "imported");
 	      watch_clause (solver, clause);
 	    }
-#ifndef NDEBUG
 	  const size_t added = SIZE (solver->added);
 	  assert (size <= added);
 	  if (size < added)
 	    {
+	      if (solver->proof)
+		{
+		  start_addition_proof_line (solver);
+		  for (all_elements_on_stack (unsigned, lit, solver->clause))
+		      add_internal_literal_to_proof_line (solver, lit);
+		  end_proof_line (solver);
+		}
+#ifndef NDEBUG
 	      for (all_elements_on_stack (unsigned, lit, solver->clause))
 		  checker_add (solver->checker, export_literal (lit));
 	      checker_learned (solver->checker);
-
-	      remove_original_clause_from_checker = true;
+#endif
+	      remove_original_clause = true;
 	    }
 	  else
-	    remove_original_clause_from_checker = false;
-#endif
+	    remove_original_clause = false;
 	}
-#ifndef NDEBUG
       else
-	remove_original_clause_from_checker = true;
-#endif
+	remove_original_clause = true;
+
       CLEAR (solver->clause);
-#ifndef NDEBUG
-      if (remove_original_clause_from_checker)
+      if (remove_original_clause)
 	{
+	  if (solver->proof)
+	    {
+	      start_deletion_proof_line (solver);
+	      for (all_elements_on_stack (int, lit, solver->added))
+		  add_external_literal_to_proof_line (solver, lit);
+	      end_proof_line (solver);
+	    }
+#ifndef NDEBUG
 	  for (all_elements_on_stack (int, lit, solver->added))
 	      checker_add (solver->checker, lit);
 	  checker_remove (solver->checker);
+#endif
 	}
       CLEAR (solver->added);
-#endif
     }
 }
 
@@ -3866,6 +3938,13 @@ satch_enable_logging_messages (struct satch *solver)
   (void) solver;
 #endif
   solver->options.verbose = INT_MAX;
+}
+
+void
+satch_trace_proof (struct satch *solver, FILE * proof)
+{
+  REQUIRE_NON_ZERO_SOLVER ();
+  solver->proof = proof;
 }
 
 /*------------------------------------------------------------------------*/

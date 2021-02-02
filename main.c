@@ -15,7 +15,7 @@
 // *INDENT-OFF*
 
 static const char *usage =
-"usage: satch [ <option> ... ] [ <dimacs> ]\n"
+"usage: satch [ <option> ... ] [ <dimacs> [ <proof> ]\n"
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
@@ -35,6 +35,11 @@ static const char *usage =
 #else
 "where '<dimacs>' is a CNF in DIMACS format.\n"
 #endif
+"\n"
+"Finally '<proof>' is the path to a file to which if specified a proof\n"
+"is written in the DRUP format (currently only ASCII format is supported).\n"
+"Both '<dimacs>' and '<proof>' can also be '-' in which case the input is\n"
+"read from '<stdin>' and the proof is written to '<stdout>'.\n"
 ;
 
 // *INDENT-ON*
@@ -78,9 +83,13 @@ static const char *usage =
 
 // Needed by the DIMACS parser.
 
-static FILE *file;		// the actual input file
-static int close_file;		// 0=no-close, 1=fclose, 2=pclose
-static const char *path;	// path name for parse error messages
+static struct
+{
+  int close;			// 0=no-close, 1=fclose, 2=pclose
+  FILE *file;
+  const char *path;
+} input, proof;
+
 static long lineno = 1;		// line number for parse error messages
 static uint64_t bytes;		// read bytes for verbose message
 
@@ -136,7 +145,8 @@ static void
 parse_error (const char *fmt, ...)
 {
   va_list ap;
-  fprintf (stderr, "satch: parse error at line %ld in '%s': ", lineno, path);
+  fprintf (stderr, "satch: parse error at line %ld in '%s': ",
+	   lineno, input.path);
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
   va_end (ap);
@@ -188,11 +198,11 @@ banner (void)
 static inline int
 next (void)
 {
-  int res = getc (file);
+  int res = getc (input.file);
   if (res == '\r')		// Care for DOS / Windows '\r\n'.
     {
       bytes++;
-      res = getc (file);
+      res = getc (input.file);
       if (res != '\n')
 	parse_error ("expected new line after carriage return");
     }
@@ -220,7 +230,7 @@ parse (void)
   if (!quiet)
     {
       satch_section (solver, "parsing");
-      message ("parsing '%s'", path);
+      message ("parsing '%s'", input.path);
     }
 
   int ch;
@@ -391,15 +401,15 @@ parse (void)
   else
     message ("parsed %zu clauses in %.2f seconds", parsed_clauses, seconds);
 
-  if (close_file == 1)		// Opened with 'fopen'.
-    fclose (file);
+  if (input.close == 1)		// Opened with 'fopen'.
+    fclose (input.file);
 
 #ifdef _POSIX_C_SOURCE
-  if (close_file == 2)		// Opened with 'popen'.
-    pclose (file);
+  if (input.close == 2)		// Opened with 'popen'.
+    pclose (input.file);
 #endif
 
-  message ("closed '%s'", path);
+  message ("closed '%s'", input.path);
   message ("after reading %" PRIu64 " bytes (%.0f MB)",
 	   bytes, bytes / (double) (1 << 20));
 }
@@ -481,12 +491,12 @@ has_suffix (const char *str, const char *suffix)
 static void
 open_pipe (const char *fmt)
 {
-  char *cmd = malloc (strlen (fmt) + strlen (path));
+  char *cmd = malloc (strlen (fmt) + strlen (input.path));
   if (!cmd)
     error ("out-of-memory allocating command buffer");
-  sprintf (cmd, fmt, path);
-  file = popen (cmd, "r");
-  close_file = 2;		// Make sure to use 'pclose' on closing.
+  sprintf (cmd, fmt, input.path);
+  input.file = popen (cmd, "r");
+  input.close = 2;		// Make sure to use 'pclose' on closing.
   free (cmd);
 }
 
@@ -590,12 +600,15 @@ main (int argc, char **argv)
 #else
 	logging = true;
 #endif
-      else if (arg[0] == '-')
+      else if (arg[0] == '-' && arg[1])
 	error ("invalid command option '%s' (try '-h')", arg);
-      else if (path)
-	error ("multiple files '%s' and '%s' (try '-h')", path, arg);
+      else if (proof.path)
+	error ("too many files '%s', '%s' and '%s' (try '-h')",
+	       input.path, proof.path, arg);
+      else if (input.path)
+	proof.path = arg;
       else
-	path = arg;
+	input.path = arg;
     }
 #ifndef NDEBUG
   if (quiet && logging)
@@ -612,26 +625,46 @@ main (int argc, char **argv)
   if (logging)
     satch_enable_logging_messages (solver);
 #endif
-  if (!path)
-    path = "<stdin>", file = stdin, assert (!close_file);
+
+  if (!input.path || !strcmp (input.path, "-"))
+    input.path = "<stdin>", input.file = stdin;
 #ifdef _POSIX_C_SOURCE
-  else if (!file_readable (path))
-    error ("can not access '%s'", path);
-  else if (has_suffix (path, ".gz"))
+  else if (!file_readable (input.path))
+    error ("can not access '%s'", input.path);
+  else if (has_suffix (input.path, ".gz"))
     open_pipe ("gzip -c -d %s");
-  else if (has_suffix (path, ".bz2"))
+  else if (has_suffix (input.path, ".bz2"))
     open_pipe ("bzip2 -c -d %s");
-  else if (has_suffix (path, ".xz"))
+  else if (has_suffix (input.path, ".xz"))
     open_pipe ("xz -c -d %s");
 #endif
   else
-    file = fopen (path, "r"), close_file = 1;
-  if (!file)
-    error ("can not open '%s'", path);
+    input.file = fopen (input.path, "r"), input.close = 1;
+  if (!input.file)
+    error ("can not read DIMACS file '%s'", input.path);
   init_signal_handler ();
   banner ();
+  if (proof.path)
+    {
+      if (!strcmp (proof.path, "-"))
+	proof.path = "-", proof.file = stdout;
+      else if ((proof.file = fopen (proof.path, "w")))
+	proof.close = 1;
+      else
+	error ("can not write DRUP file '%s'", proof.path);
+      satch_trace_proof (solver, proof.file);
+    }
   parse ();
   int res = satch_solve (solver);
+  if (proof.file)
+    {
+      if (proof.close == 1)
+	fclose (proof.file);
+#ifdef _POSIX_C_SOURCE
+      if (proof.close == 2)
+	pclose (proof.file);
+#endif
+    }
   if (!quiet)
     satch_section (solver, "result");
   if (res == SATISFIABLE)
