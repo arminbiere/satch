@@ -16,12 +16,16 @@ static const char * usage =
 "  -i | --invalid  only print invalid combinations\n"
 "  -v | --verbose  set verbose mode\n"
 "\n"
-"By default the SAT solver SATCH is used to search for as few as possible\n"
-"configurations which contains all valid pairs of options and prints them.\n"
-"For all pair of options we also add a constraint that their combination\n"
-"should not occur in at least one chosen configuration.\n"
+"This is a tool to generate a list of configuration options. The list of\n"
+"possible options as well as incompatible pairs are hard coded into the\n"
+"program (thus for now just match those from SATCH).\n"
 "\n"
-"Using '--all' will generate all valid combinations of options by combining\n" 
+"By default the SAT solver SATCH is used to search for a list of as few\n"
+"as possible configurations which contain all valid pairs of options and\n"
+"prints them. For all pair of options we also add a constraint that their\n"
+"combination should not occur in at least one chosen configuration.\n"
+"\n"
+"Using '--all' generates all valid combinations of options by combining\n" 
 "of at most '<k>' options.  Again all configurations are printed.\n"
 "\n"
 "The third mode produces a CNF in DIMACS format which is satisfiable if\n"
@@ -178,7 +182,7 @@ static int *config;
 
 // Recursively generate and print all valid configurations of up-to 'select'
 // options.  The argument 'select' gives the number of remaining to be
-// selected options while 'selected' is the numebr of already selected.
+// selected options while 'selected' is the number of already selected.
 
 static void
 generate (int current, int select)

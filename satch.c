@@ -383,10 +383,11 @@ struct reluctant		// Reluctant doubling (by D. Knuth).
 
 struct options			// Runtime options.
 {
+  bool ascii;			// use ASCII proof format
 #ifndef NDEBUG
-  bool logging;
+  bool logging;			// print logging messages
 #endif
-  unsigned verbose;
+  unsigned verbose;		// verbose level for messages 0..4
 };
 
 struct statistics		// Runtime statistics.
@@ -1203,37 +1204,88 @@ export_literal (unsigned ilit)
 
 /*------------------------------------------------------------------------*/
 
+// Print DRAT (actually DRUP) proof lines in ASCII or binary format to the
+// given proof file. These lines are either clause additions or clause
+// deletions.  The binary format distinguished them by a leading 'a' or 'd'
+// (ASCII) character, while the ASCII format just adds a "d " prefix for
+// clause deletion.  Then literals are printed.  The binary format uses a
+// dynamic word length for numbers while the ASCII format looks like the
+// DIMACS format. The end of a proof line is indicated by zero (number in
+// the ASCII format and byte in the binary format).
+
 static void
 start_addition_proof_line (struct satch *solver)
 {
-  (void) solver;
+  assert (solver->proof);
+  if (!solver->options.ascii)
+    fputc ('a', solver->proof);
 }
 
 static void
 start_deletion_proof_line (struct satch *solver)
 {
   assert (solver->proof);
-  fputs ("d ", solver->proof);
+  fputc ('d', solver->proof);
+  if (solver->options.ascii)
+    fputc (' ', solver->proof);
 }
 
 static void
 add_external_literal_to_proof_line (struct satch *solver, int elit)
 {
   assert (solver->proof);
-  fprintf (solver->proof, "%d ", elit);
+  if (solver->options.ascii)
+    fprintf (solver->proof, "%d ", elit);
+  else
+    {
+      // This is almost like our internal literal encoding except that it is
+      // shifted by two, since zero is used as sentinel of a proof line.
+
+      assert (2u * INT_MAX + 1 == UINT_MAX);	// no overflow for 'INT_MAX'
+
+      const unsigned plit = 2u * abs (elit) + (elit < 0);
+
+      // Now this proof literal 'plit' is written 7-bit wise to the file.
+      // The 8th most significant bit of the actual written byte denotes
+      // whether further non-zero bits are following.
+
+      unsigned rest = plit;
+
+      while (rest & ~0x7f)
+	{
+	  const unsigned char byte = (rest & 0x7f) | 0x80;
+	  fputc (byte, solver->proof);
+	  rest >>= 7;
+	}
+
+      fputc ((unsigned char) rest, solver->proof);
+    }
 }
 
 static void
 add_internal_literal_to_proof_line (struct satch *solver, unsigned ilit)
 {
-  add_external_literal_to_proof_line (solver, export_literal (ilit));
+  const int elit = export_literal (ilit);
+  add_external_literal_to_proof_line (solver, elit);
 }
 
 static void
 end_proof_line (struct satch *solver)
 {
   assert (solver->proof);
-  fputs ("0\n", solver->proof);
+  if (solver->options.ascii)
+    fputs ("0\n", solver->proof);
+  else
+    fputc (0, solver->proof);
+}
+
+static void
+add_internal_clause_to_proof (struct satch *solver)
+{
+  start_addition_proof_line (solver);
+  for (all_elements_on_stack (unsigned, lit, solver->clause))
+      add_internal_literal_to_proof_line (solver, lit);
+  end_proof_line (solver);
 }
 
 /*------------------------------------------------------------------------*/
@@ -1359,8 +1411,8 @@ delete_clause (struct satch *solver, struct clause *c)
     }
 #if !defined(NDEBUG) && !defined(NLEARN)
   for (all_literals_in_clause (lit, c))
-    checker_add (solver->checker, export_literal (lit));
-  checker_remove (solver->checker);
+    checker_add_literal (solver->checker, export_literal (lit));
+  checker_delete_clause (solver->checker);
 #endif
   if (c->redundant)
     DEC (redundant);
@@ -1565,9 +1617,9 @@ delete_binary (struct satch *solver,
       end_proof_line (solver);
     }
 #if !defined(NDEBUG) && !defined(NLEARN)
-  checker_add (solver->checker, export_literal (lit));
-  checker_add (solver->checker, export_literal (other));
-  checker_remove (solver->checker);
+  checker_add_literal (solver->checker, export_literal (lit));
+  checker_add_literal (solver->checker, export_literal (other));
+  checker_delete_clause (solver->checker);
 #endif
   if (redundant)
     DEC (redundant);
@@ -2385,7 +2437,7 @@ minimize_literal (struct satch *solver, unsigned lit, unsigned depth)
   if (mark & POISONED)
     return false;		// previously shown not to be removable
   if (mark & REMOVABLE)
-    return true;		// previously shown to be reomvable
+    return true;		// previously shown to be removable
   if (depth && (mark & SEEN))
     return true;		// analyzed thus removable (unless start)
   if (depth > minimize_depth)
@@ -2466,24 +2518,22 @@ analyze (struct satch *solver, struct clause *conflict)
 {
   assert (!solver->inconsistent);
 
+  assert (EMPTY (solver->clause));	// Clause learned.
+
   const unsigned conflict_level = solver->level;
   if (!conflict_level)
     {
       LOG ("learned empty clause");
       solver->inconsistent = true;
       if (solver->proof)
-	{
-	  start_addition_proof_line (solver);
-	  end_proof_line (solver);
-	}
+	add_internal_clause_to_proof (solver);
 #ifndef NDEBUG
-      checker_learned (solver->checker);
+      checker_add_learned_clause (solver->checker);
 #endif
       return false;
     }
 
   assert (EMPTY (solver->blocks));	// Decision levels analyzed.
-  assert (EMPTY (solver->clause));	// Clause learned.
   assert (EMPTY (solver->seen));	// Analyzed literals.
 
   PUSH (solver->clause, INVALID);	// Reserve room for 1st UIP.
@@ -2617,6 +2667,14 @@ analyze (struct satch *solver, struct clause *conflict)
     }
   CLEAR (solver->seen);
 
+  if (solver->proof)
+    add_internal_clause_to_proof (solver);
+#ifndef NDEBUG
+  for (all_elements_on_stack (unsigned, lit, solver->clause))
+      checker_add_literal (solver->checker, export_literal (lit));
+  checker_add_learned_clause (solver->checker);
+#endif
+
   backtrack (solver, jump_level);
 
   if (size == 1)		// Learned a unit clause.
@@ -2669,18 +2727,6 @@ analyze (struct satch *solver, struct clause *conflict)
       assign (solver, not_uip, learned);
     }
 
-  if (solver->proof)
-    {
-      start_addition_proof_line (solver);
-      for (all_elements_on_stack (unsigned, lit, solver->clause))
-	  add_internal_literal_to_proof_line (solver, lit);
-      end_proof_line (solver);
-    }
-#ifndef NDEBUG
-  for (all_elements_on_stack (unsigned, lit, solver->clause))
-      checker_add (solver->checker, export_literal (lit));
-  checker_learned (solver->checker);
-#endif
   CLEAR (solver->clause);
 
   return true;
@@ -3718,13 +3764,13 @@ satch_add (struct satch *solver, int elit)
       PUSH (solver->clause, ilit);
       PUSH (solver->added, elit);
 #ifndef NDEBUG
-      checker_add (solver->checker, elit);
+      checker_add_literal (solver->checker, elit);
 #endif
     }
   else
     {
 #ifndef NDEBUG
-      checker_original (solver->checker);
+      checker_add_original_clause (solver->checker);
 #endif
       bool remove_original_clause;
 
@@ -3795,16 +3841,11 @@ satch_add (struct satch *solver, int elit)
 	  if (size < added)
 	    {
 	      if (solver->proof)
-		{
-		  start_addition_proof_line (solver);
-		  for (all_elements_on_stack (unsigned, lit, solver->clause))
-		      add_internal_literal_to_proof_line (solver, lit);
-		  end_proof_line (solver);
-		}
+		add_internal_clause_to_proof (solver);
 #ifndef NDEBUG
 	      for (all_elements_on_stack (unsigned, lit, solver->clause))
-		  checker_add (solver->checker, export_literal (lit));
-	      checker_learned (solver->checker);
+		  checker_add_literal (solver->checker, export_literal (lit));
+	      checker_add_learned_clause (solver->checker);
 #endif
 	      remove_original_clause = true;
 	    }
@@ -3826,8 +3867,8 @@ satch_add (struct satch *solver, int elit)
 	    }
 #ifndef NDEBUG
 	  for (all_elements_on_stack (int, lit, solver->added))
-	      checker_add (solver->checker, lit);
-	  checker_remove (solver->checker);
+	      checker_add_literal (solver->checker, lit);
+	  checker_delete_clause (solver->checker);
 #endif
 	}
       CLEAR (solver->added);
@@ -3922,7 +3963,7 @@ satch_set_verbose_level (struct satch *solver, int new_verbose_level)
   if (new_verbose_level < 0)
     new_verbose_level = 0;
 #ifndef NDEBUG
-  if (!solver->options.verbose && new_verbose_level > 1)
+  if (new_verbose_level > 1)
     checker_verbose (solver->checker);
 #endif
   solver->options.verbose = new_verbose_level;
@@ -3933,11 +3974,20 @@ satch_enable_logging_messages (struct satch *solver)
 {
   REQUIRE_NON_ZERO_SOLVER ();
 #ifndef NDEBUG
+  checker_logging (solver->checker);
+  checker_verbose (solver->checker);
   solver->options.logging = true;
 #else
   (void) solver;
 #endif
   solver->options.verbose = INT_MAX;
+}
+
+void
+satch_ascii_proof (struct satch *solver)
+{
+  REQUIRE_NON_ZERO_SOLVER ();
+  solver->options.ascii = true;
 }
 
 void

@@ -3,6 +3,12 @@
 
 /*------------------------------------------------------------------------*/
 
+// This is the API of a small library for  online proof checking in style of
+// the DRUP / DRAT format used in the SAT competition even though only DRUP
+// is supported at this point.
+
+/*------------------------------------------------------------------------*/
+
 struct checker;
 
 /*------------------------------------------------------------------------*/
@@ -15,12 +21,19 @@ void checker_release (struct checker *);
 //
 void checker_verbose (struct checker *);
 
+#ifndef NDEBUG
+// Logging messages are enabled setting option. This is useful to debug
+// discrepancies between checking proofs online and offline.
+//
+void checker_logging (struct checker *);
+#endif
+
 // The checker can be enabled to check that all added closes are also
 // removed before the checker is released.  Clauses satisfied by unit
 // implication are ignored in this test though.  This test breaks down if
 // the user is sloppy in removing clauses and thus on the other hand can be
-// used to track down 'lost' clauses.  Lost or leaked clauses are not
-// seen by the solver anymore but the checker still has a copy of them.
+// used to track down 'lost' clauses.  Lost or leaked clauses are those that
+// not seen by the solver anymore but the checker still has a copy of them.
 //
 void checker_enable_leak_checking (struct checker *);
 
@@ -32,11 +45,11 @@ void checker_enable_leak_checking (struct checker *);
 // an implied clause or remove a clause (the latter corresponds to 'd' lines
 // the DRUP/DRAT file based proof checking format).
 
-void checker_add (struct checker *, int lit);
+void checker_add_literal (struct checker *, int lit);
 
-void checker_original (struct checker *);
-void checker_remove (struct checker *);
-void checker_learned (struct checker *);
+void checker_delete_clause (struct checker *);
+void checker_add_original_clause (struct checker *);
+void checker_add_learned_clause (struct checker *);
 
 /*------------------------------------------------------------------------*/
 

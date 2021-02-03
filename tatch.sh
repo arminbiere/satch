@@ -5,29 +5,78 @@ die () {
   exit 1
 }
 
+msg () {
+  echo "tatch.sh: $*"
+}
+
 [ -f satch ] || \
    die "could not find 'satch': run './configure && make' first"
 
 [ -f makefile ] || die "could not find 'makefile'"
 
+drattrim="`type drat-trim 2>/dev/null |awk '{print $NF}'`"
+
+if [ "$drattrim" ]
+then
+  msg "checking proofs with '$drattrim'"
+  proofsmod3=0
+else
+  msg "could not find 'drat-trim'"
+  msg "(you might want to add it to your path for more thorough checking"
+fi
+
 run () {
   expected=$1
   shift
   command="$*"
+  proof=""
+  if [ "$drattrim" -a $expected = 20 ]
+  then
+    cnf="$2"
+    case "$cnf" in
+      *.cnf);;
+      *) die "expected CNF as second argument in '$expected $command'";;
+    esac
+    proofpath=cnfs/`basename $cnf .cnf`.proof
+    rm -f $proofpath 2>/dev/null || die "failed to 'rm -f $proofpath'"
+    options=""
+    case $proofsmod3 in
+      0) proofsmod3=1; ;;
+      1) proofsmod3=2; proof="$proofpath";;
+      2) proofsmod3=0; options="-a"; proof="$proofpath";;
+    esac
+    [ "$options" ] && command="$command $options"
+    [ "$proof" ] && command="$command $proof"
+  fi
   echo -n "$command # expected '$expected'"
   $command 1>/dev/null 2>/dev/null
   status=$?
   if [ $status = $expected ]
   then
-    echo " OK"
+    if [ "$proof" -a $expected = 20 ]
+    then
+      if [ -f "$proof" ]
+      then
+        output="`$drattrim $cnf $proof 2>/dev/null|grep 's VERIFIED$'`"
+	if [ "$output" ]
+	then 
+	  echo " proof OK"
+	else
+	  echo " proof FAILED"
+	  echo "$drattrim $cnf $proof"
+	  exit 1
+	fi
+      else
+	echo " OK but '$proof' missing"
+	exit 1
+      fi
+    else
+      echo " OK"
+    fi
   else
-    echo " but status '$status' FAILED"
+    echo " status '$status' FAILED"
     exit 1
   fi
-}
-
-msg () {
-  echo "tatch.sh: $*"
 }
 
 if [ x"`grep DNLEARN makefile`" = x ]

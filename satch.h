@@ -46,7 +46,7 @@ void satch_reserve (struct satch *, int max_var);
 
 /*------------------------------------------------------------------------*/
 
-// By default the library does not print any messages (the solver binary
+// By default the library does not print any messages (the solver executable
 // however does switch on 'verbose' messages by default unless '-q' is
 // specified). There are four non-zero levels of verbose messages.
 //
@@ -56,6 +56,12 @@ void satch_set_verbose_level (struct satch *, int level);
 void satch_enable_logging_messages (struct satch *);
 #endif
 
+// Use ASCII proof format.
+//
+void satch_ascii_proof (struct satch *);
+
+// Trace DRAT (actually a DRUP) proof to the given file.
+//
 void satch_trace_proof (struct satch *, FILE *);
 
 /*------------------------------------------------------------------------*/

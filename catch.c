@@ -12,9 +12,9 @@
 // solvers by just linking against 'catch.o' and using the API in 'catch.h'.
 // A failure triggers a call to 'abort ()'.  For satisfiable instances we
 // also check at the very end (during 'checker_release') that all clauses
-// ever added which are not root-level satisfied have been removed.  This is
+// ever added which are not root-level satisfied have been deleted.  This is
 // stronger than what is expected by DRUP/DRAT but useful to find clauses
-// that have been forgotten to be removed (from the checker or in general
+// that have been forgotten to be deleted (from the checker or in general
 // have been 'lost').
 
 /*------------------------------------------------------------------------*/
@@ -73,7 +73,7 @@ struct checker
   struct clause **watches;	// Singly linked lists through 'next'.
 
   struct unsigned_stack trail;	// Partial assignment trail.
-  struct unsigned_stack clause;	// Temporary clause added or removed.
+  struct unsigned_stack clause;	// Temporary clause added or deleted.
 
   // Limits to control garbage collection frequency.
   //
@@ -82,12 +82,15 @@ struct checker
 
   // Statistics
   //
-  size_t original, learned, removed;
+  size_t original, learned, deleted;
   size_t collected, collections;
   size_t clauses, remained;
 
   int leak_checking;		// Enable leak checking at the end.
   int verbose;			// Print (few) verbose messages.
+#ifndef NDEBUG
+  int logging;			// Log all calls.
+#endif
 };
 
 /*------------------------------------------------------------------------*/
@@ -109,6 +112,9 @@ checker_fatal_error (const char *msg, ...)
 }
 
 #define checker_prefix "c [checker] "
+#ifndef NDEBUG
+#define logging_prefix "c CHECKER "
+#endif
 
 // The 'stack.h' code calls 'fatal_error' in case of out-of-memory and thus
 // we just define a macro to refer to the checker internal fatal-error
@@ -160,7 +166,35 @@ checker_import (struct checker *checker, int elit)
 
 /*------------------------------------------------------------------------*/
 
-// Trivial clauses are neither added nor removed.  A clause is trivial it if
+#ifndef NDEBUG
+
+static unsigned
+SIGN (unsigned lit)
+{
+  return lit & 1;
+}
+
+static unsigned
+INDEX (unsigned lit)
+{
+  return lit >> 1;
+}
+
+static int
+checker_export (unsigned ilit)
+{
+  const unsigned iidx = INDEX (ilit);
+  assert (iidx < (unsigned) INT_MAX - 1);
+  const int eidx = iidx + 1;
+  const int elit = SIGN (ilit) ? -eidx : eidx;
+  return elit;
+}
+
+#endif
+
+/*------------------------------------------------------------------------*/
+
+// Trivial clauses are neither added nor deleted.  A clause is trivial it if
 // contains two clashing literals or a literal assigned to true.
 
 static bool
@@ -768,6 +802,62 @@ do { \
 
 /*------------------------------------------------------------------------*/
 
+static double
+percent (double a, double b)
+{
+  return b ? 100.0 * a / b : 0;
+}
+
+static void
+checker_statistics (struct checker *checker)
+{
+  const size_t original = checker->original;
+  const size_t learned = checker->learned;
+  const size_t deleted = checker->deleted;
+  const size_t collected = checker->collected;
+  const size_t total = original + learned;
+
+  // *INDENT-OFF*
+  printf (checker_prefix
+          "added %zu original clauses %.0f%%\n"
+	  checker_prefix
+	  "checked %zu learned clauses %.0f%%\n"
+	  checker_prefix
+	  "found and deleted %zu clauses %.0f%%\n"
+	  checker_prefix
+	  "collected %zu satisfied clauses %.0f%%\n"
+	  checker_prefix
+	  "triggered %zu garbage collections\n"
+	  checker_prefix
+	  "%zu clauses remained\n",
+	  original, percent (original, total),
+	  learned, percent (learned, total),
+	  deleted, percent (deleted, total),
+	  collected, percent (collected, total),
+	  checker->collections, checker->remained);
+  // *INDENT-ON*
+
+  fflush (stdout);
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
+checker_log_clause (struct checker *checker, const char *type)
+{
+  assert (checker->logging);
+  fputs (logging_prefix, stdout);
+  fputs (type, stdout);
+  for (all_elements_on_stack (unsigned, lit, checker->clause))
+      printf (" %d", checker_export (lit));
+  fputc ('\n', stdout);
+  fflush (stdout);
+}
+
+/*========================================================================*/
+//      Non-static functions defined by the API are put below.            //
+/*========================================================================*/
+
 struct checker *
 checker_init (void)
 {
@@ -781,57 +871,34 @@ checker_init (void)
 void
 checker_verbose (struct checker *checker)
 {
+  assert (checker);
   checker->verbose = 1;
   printf (checker_prefix "enabling verbose mode of internal proof checker\n");
   fflush (stdout);
 }
 
+#ifndef NDEBUG
+
+void
+checker_logging (struct checker *checker)
+{
+  assert (checker);
+  checker->logging = 1;
+  printf (logging_prefix "enabling logging mode of internal proof checker\n");
+  fflush (stdout);
+}
+
+#endif
+
 void
 checker_enable_leak_checking (struct checker *checker)
 {
+  assert (checker);
   checker->leak_checking = 1;
   if (!checker->verbose)
     return;
   printf (checker_prefix
 	  "enabling leak checking of internal proof checker\n");
-  fflush (stdout);
-}
-
-static double
-percent (double a, double b)
-{
-  return b ? 100.0 * a / b : 0;
-}
-
-static void
-checker_statistics (struct checker *checker)
-{
-  const size_t original = checker->original;
-  const size_t learned = checker->learned;
-  const size_t removed = checker->removed;
-  const size_t collected = checker->collected;
-  const size_t total = original + learned;
-
-  // *INDENT-OFF*
-  printf (checker_prefix
-          "added %zu original clauses %.0f%%\n"
-	  checker_prefix
-	  "checked %zu learned clauses %.0f%%\n"
-	  checker_prefix
-	  "found and removed %zu clauses %.0f%%\n"
-	  checker_prefix
-	  "collected %zu satisfied clauses %.0f%%\n"
-	  checker_prefix
-	  "triggered %zu garbage collections\n"
-	  checker_prefix
-	  "%zu clauses remained\n",
-	  original, percent (original, total),
-	  learned, percent (learned, total),
-	  removed, percent (removed, total),
-	  collected, percent (collected, total),
-	  checker->collections, checker->remained);
-  // *INDENT-ON*
-
   fflush (stdout);
 }
 
@@ -855,7 +922,7 @@ checker_release (struct checker *checker)
 /*------------------------------------------------------------------------*/
 
 void
-checker_add (struct checker *checker, int elit)
+checker_add_literal (struct checker *checker, int elit)
 {
   REQUIRE_NON_ZERO_CHECKER ();
   REQUIRE (elit, "zero literal argument");
@@ -869,9 +936,13 @@ checker_add (struct checker *checker, int elit)
 /*------------------------------------------------------------------------*/
 
 void
-checker_original (struct checker *checker)
+checker_add_original_clause (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
+#ifndef NDEBUG
+  if (checker->logging)
+    checker_log_clause (checker, "original");
+#endif
   if (checker->inconsistent)
     return;
   checker->original++;
@@ -881,9 +952,13 @@ checker_original (struct checker *checker)
 }
 
 void
-checker_learned (struct checker *checker)
+checker_add_learned_clause (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
+#ifndef NDEBUG
+  if (checker->logging)
+    checker_log_clause (checker, "learned");
+#endif
   if (checker->inconsistent)
     return;
   checker->learned++;
@@ -894,12 +969,16 @@ checker_learned (struct checker *checker)
 }
 
 void
-checker_remove (struct checker *checker)
+checker_delete_clause (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
+#ifndef NDEBUG
+  if (checker->logging)
+    checker_log_clause (checker, "remove");
+#endif
   if (checker->inconsistent)
     return;
-  checker->removed++;
+  checker->deleted++;
   if (!checker_trivial_clause (checker))
     checker_remove_clause (checker);
   checker_clear_clause (checker);

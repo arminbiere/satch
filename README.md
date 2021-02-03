@@ -78,7 +78,7 @@ Furthermore, as we are having many different combinations of configurations,
 testing them is non-trivial and is achieved with the following:
 
   combi4.sh       complete 4-fold combinatorial testing of configurations
-  gencombi.c      generates configurations (example SAT solver usage too)
+  gencombi.c      generates configurations ("eat your own dogfood")
   gencombi        binary built from `gencombi.c` (by `make test`)
   checkconfig.sh  checks configurations (e.g., produced by `gencombi`)
 

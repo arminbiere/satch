@@ -15,18 +15,23 @@
 // *INDENT-OFF*
 
 static const char *usage =
-"usage: satch [ <option> ... ] [ <dimacs> [ <proof> ]\n"
+"usage: satch [ <option> ... ] [ <dimacs> [ <proof> ] ]\n"
 "\n"
 "where '<option>' is one of the following\n"
 "\n"
 "  -h                   print this option summary\n"
 "  --version            print solver version and exit\n"
-"  -n | --no-witness    disable printing of model / satisfying assignment\n"
-"  -q | --quiet         disable verbose messages\n"
-"  -v | --verbose       increment verbose level\n"
+"\n"
+"  -a | --ascii         use ASCII format to write proof to file\n"
+"  -b | --binary        use binary format to write proof to file\n"
+"  -f | --force         overwrite proof files and relax parsing\n"
+"  -n | --no-witness    disable printing of satisfying assignment\n"
+"\n"
 #ifndef NDEBUG
 "  -l | --log           enable logging messages\n"
 #endif
+"  -q | --quiet         disable verbose messages\n"
+"  -v | --verbose       increment verbose level\n"
 "\n"
 #ifdef _POSIX_C_SOURCE
 "where '<dimacs>' is an optionally compressed CNF in DIMACS format by\n"
@@ -37,9 +42,12 @@ static const char *usage =
 #endif
 "\n"
 "Finally '<proof>' is the path to a file to which if specified a proof\n"
-"is written in the DRUP format (currently only ASCII format is supported).\n"
-"Both '<dimacs>' and '<proof>' can also be '-' in which case the input is\n"
-"read from '<stdin>' and the proof is written to '<stdout>'.\n"
+"is written in the DRUP format.  Both '<dimacs>' and '<proof>' can also\n"
+"be '-' in which case the input is read from '<stdin>' and the proof is\n"
+"written to '<stdout>'. Proofs written to '<stdout>' use the ASCII format\n"
+"(unless '--binary' is specified) while proofs written to a file use the\n"
+"more compact binary format used in the SAT competition (unless '--ascii'\n"
+"is specified).\n"
 ;
 
 // *INDENT-ON*
@@ -102,7 +110,20 @@ static int variables;
 
 /*------------------------------------------------------------------------*/
 
-static bool quiet;		// Turn off default 'verbose' mode.
+// Global options (we keep the actual option string used to set them).
+// Note that global variables in 'C' are initialized to zero and thus these
+// options are all disabled initially.
+
+static const char *ascii;	// Force ASCII format for proof files.
+static const char *binary;	// Force binary format writing to stdout.
+static const char *force;	// Overwrite proofs and relax parsing.
+
+#ifndef NDEBUG
+const char *logging;
+#endif
+static const char *quiet;	// Turn off default 'verbose' mode.
+const char *no_witness;		//
+
 static int verbose = 1;		// Verbose level (unless 'quiet' is set).
 
 /*------------------------------------------------------------------------*/
@@ -230,7 +251,7 @@ parse (void)
   if (!quiet)
     {
       satch_section (solver, "parsing");
-      message ("parsing '%s'", input.path);
+      message ("%sparsing '%s'", force ? "force " : "", input.path);
     }
 
   int ch;
@@ -301,11 +322,11 @@ parse (void)
 		 specified_clauses);
 
   message ("parsed 'p cnf %d %zu' header", variables, specified_clauses);
-#if 0
   satch_reserve (solver, variables);
-#endif
 
   size_t parsed_clauses = 0;
+  int parsed_variables = 0;
+
   int lit = 0;
 
   for (;;)
@@ -336,34 +357,39 @@ parse (void)
       else if (!isdigit (ch))
 	parse_error ("expected number");
 
-      assert (parsed_clauses <= specified_clauses);
-      if (parsed_clauses == specified_clauses)
-	parse_error ("more clauses than specified");
-
-      lit = ch - '0';
-      while (isdigit (ch = next ()))
+      if (!force)
 	{
-	  if (!lit)
-	    parse_error ("invalid digit after '0' in number");
-	  if (INT_MAX / 10 < lit)
-	    parse_error ("number way too large");
-	  lit *= 10;
-	  const int digit = ch - '0';
-	  if (INT_MAX - digit < lit)
-	    parse_error ("number too large");
-	  lit += digit;
+	  assert (parsed_clauses <= specified_clauses);
+	  if (parsed_clauses == specified_clauses)
+	    parse_error ("more clauses than specified");
 	}
 
-      assert (lit != INT_MIN);
-      lit *= sign;
+      int idx = ch - '0';
+      while (isdigit (ch = next ()))
+	{
+	  if (!idx)
+	    parse_error ("invalid digit after '0' in number");
+	  if (INT_MAX / 10 < idx)
+	    parse_error ("number way too large");
+	  idx *= 10;
+	  const int digit = ch - '0';
+	  if (INT_MAX - digit < idx)
+	    parse_error ("number too large");
+	  idx += digit;
+	}
+
+      lit = sign * idx;
 
       if (ch != ' ' && ch != '\t' && ch != '\n' && ch != 'c')
 	parse_error ("unexpected character after '%d'", lit);
 
       assert (lit != INT_MIN);
-      if (abs (lit) > variables)
+      if (!force && idx > variables)
 	parse_error ("literal '%d' exceeds maximum variable index '%d'",
 		     lit, variables);
+
+      if (idx > parsed_variables)
+	parsed_variables = idx;
 
       if (!lit)
 	parsed_clauses++;
@@ -386,7 +412,7 @@ parse (void)
   if (lit)
     parse_error ("terminating zero after literal '%d' missing", lit);
 
-  if (parsed_clauses < specified_clauses)
+  if (!force && parsed_clauses < specified_clauses)
     {
       if (parsed_clauses + 1 == specified_clauses)
 	parse_error ("single clause missing");
@@ -396,10 +422,19 @@ parse (void)
     }
 
   const double seconds = satch_stop_profiling_parsing (solver);
+
   if (parsed_clauses == 1)
     message ("parsed exactly one clause in %.2f seconds", seconds);
   else
     message ("parsed %zu clauses in %.2f seconds", parsed_clauses, seconds);
+
+  if (parsed_variables == 0)
+    message ("input file does not contain any variable");
+  else
+    message ("found maximum variable index %d", parsed_variables);
+
+  if (force && variables < parsed_variables)
+    variables = parsed_variables;
 
   if (input.close == 1)		// Opened with 'fopen'.
     fclose (input.file);
@@ -574,32 +609,49 @@ init_signal_handler (void)
 
 /*------------------------------------------------------------------------*/
 
+static void
+set_option (const char **p, const char *a)
+{
+  if (!*p)
+    *p = a;
+  else if (!strcmp (*p, a))
+    error ("multiple '%s'", a);
+  else
+    error ("redundant '%s' and '%s'", *p, a);
+}
+
 int
 main (int argc, char **argv)
 {
-  bool witness = true;
-#ifndef NDEBUG
-  bool logging = false;
-#endif
   for (int i = 1; i < argc; i++)
     {
       const char *arg = argv[i];
+
       if (!strcmp (arg, "-h"))
 	fputs (usage, stdout), exit (0);
       if (!strcmp (arg, "--version"))
 	printf ("%s\n", satch_version ()), exit (0);
+
+      else if (!strcmp (arg, "-a") || !strcmp (arg, "--ascii"))
+	set_option (&ascii, arg);
+      else if (!strcmp (arg, "-b") || !strcmp (arg, "--binary"))
+	set_option (&binary, arg);
+      else if (!strcmp (arg, "-f") || !strcmp (arg, "--force"))
+	set_option (&force, arg);
       else if (!strcmp (arg, "-n") || !strcmp (arg, "--no-witness"))
-	witness = false;
-      else if (!strcmp (arg, "-q") || !strcmp (arg, "--quiet"))
-	quiet = true;
-      else if (!strcmp (arg, "-v") || !strcmp (arg, "--verbose"))
-	verbose += (verbose < INT_MAX);
+	set_option (&no_witness, arg);
+
       else if (!strcmp (arg, "-l") || !strcmp (arg, "--log"))
 #ifdef NDEBUG
 	error ("solver configured without logging support");
 #else
-	logging = true;
+	set_option (&logging, arg);
 #endif
+      else if (!strcmp (arg, "-q") || !strcmp (arg, "--quiet"))
+	set_option (&quiet, arg);
+      else if (!strcmp (arg, "-v") || !strcmp (arg, "--verbose"))
+	verbose += (verbose < INT_MAX);
+
       else if (arg[0] == '-' && arg[1])
 	error ("invalid command option '%s' (try '-h')", arg);
       else if (proof.path)
@@ -610,12 +662,13 @@ main (int argc, char **argv)
       else
 	input.path = arg;
     }
+
 #ifndef NDEBUG
   if (quiet && logging)
-    error ("can not combine '--quiet' and '--log'");
+    error ("can not combine '%s' and '%s'", quiet, logging);
 #endif
   if (quiet && verbose > 1)
-    error ("can not combine '--quiet' and '--verbose'");
+    error ("can use '%s' and increase verbosity", quiet);
   solver = satch_init ();
   if (!solver)
     error ("failed to initialize solver");
@@ -625,6 +678,25 @@ main (int argc, char **argv)
   if (logging)
     satch_enable_logging_messages (solver);
 #endif
+
+  if (ascii && binary)
+    error ("both '%s' and '%s' specified", ascii, binary);
+  if (ascii && !proof.path)
+    error ("invalid '%s' without proof file", ascii);
+  if (binary && !proof.path)
+    error ("invalid '%s' without proof file", binary);
+  if (ascii && proof.path && !strcmp (proof.path, "-"))
+    error ("invalid '%s' for proofs written to '<stdout>'", ascii);
+  if (binary && proof.path && strcmp (proof.path, "-"))
+    error ("invalid '%s' for proof written to a file", binary);
+  if (binary && proof.path && !strcmp (proof.path, "-") && isatty (1))
+    error ("not writing binary proof to terminal ('%s' and '-')", binary);
+
+  if (!force &&
+      proof.path &&
+      strcmp (proof.path, "-") &&
+      strcmp (proof.path, "/dev/null") && file_readable (proof.path))
+    error ("will not overwrite '%s' without '-f' (try '-h')", proof.path);
 
   if (!input.path || !strcmp (input.path, "-"))
     input.path = "<stdin>", input.file = stdin;
@@ -642,20 +714,31 @@ main (int argc, char **argv)
     input.file = fopen (input.path, "r"), input.close = 1;
   if (!input.file)
     error ("can not read DIMACS file '%s'", input.path);
+
   init_signal_handler ();
   banner ();
+
   if (proof.path)
     {
       if (!strcmp (proof.path, "-"))
-	proof.path = "-", proof.file = stdout;
+	{
+	  proof.path = "-", proof.file = stdout;
+	  if (!binary)
+	    ascii = "use-ASCII-format-by-default-when-writing-to-stdout";
+	}
       else if ((proof.file = fopen (proof.path, "w")))
 	proof.close = 1;
       else
 	error ("can not write DRUP file '%s'", proof.path);
+
+      if (ascii)
+	satch_ascii_proof (solver);
       satch_trace_proof (solver, proof.file);
     }
+
   parse ();
   int res = satch_solve (solver);
+
   if (proof.file)
     {
       if (proof.close == 1)
@@ -665,12 +748,13 @@ main (int argc, char **argv)
 	pclose (proof.file);
 #endif
     }
+
   if (!quiet)
     satch_section (solver, "result");
   if (res == SATISFIABLE)
     {
       printf ("s SATISFIABLE\n");
-      if (witness)
+      if (!no_witness)
 	{
 	  for (int i = 1; i <= variables; i++)
 	    print_value (satch_val (solver, i));
@@ -686,15 +770,19 @@ main (int argc, char **argv)
     }
   else
     message ("no result");
+
   if (!quiet)
     {
       satch_statistics (solver);
       fflush (stdout);
     }
+
   reset_signal_handler ();
+
   if (!quiet)
     satch_section (solver, "shutting down");
   satch_release (solver);
   message ("exit %d", res);
+
   return res;
 }
