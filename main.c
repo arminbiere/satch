@@ -21,6 +21,7 @@ static const char *usage =
 "\n"
 "  -h                   print this option summary\n"
 "  --version            print solver version and exit\n"
+"  --id | --identifier  print GIT hash as identifier\n"
 "\n"
 "  -a | --ascii         use ASCII format to write proof to file\n"
 "  -b | --binary        use binary format to write proof to file\n"
@@ -631,6 +632,8 @@ main (int argc, char **argv)
 	fputs (usage, stdout), exit (0);
       if (!strcmp (arg, "--version"))
 	printf ("%s\n", satch_version ()), exit (0);
+      if (!strcmp (arg, "--id") || !strcmp (arg, "--identifier"))
+	printf ("%s\n", satch_identifier ()), exit (0);
 
       else if (!strcmp (arg, "-a") || !strcmp (arg, "--ascii"))
 	set_option (&ascii, arg);

@@ -10,3 +10,4 @@ config.c
 *.gcno
 *.gcov
 gmon.out
+*.proof

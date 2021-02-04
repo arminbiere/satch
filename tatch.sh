@@ -14,16 +14,28 @@ msg () {
 
 [ -f makefile ] || die "could not find 'makefile'"
 
+msg "SATCH Version `./satch --version` `./satch --id`"
+
 drattrim="`type drat-trim 2>/dev/null |awk '{print $NF}'`"
 
 if [ "$drattrim" ]
 then
-  msg "checking proofs with '$drattrim'"
-  proofsmod3=0
+  rm -f cnfs/false.proof
+  touch false.proof
+  if [ "`$drattrim cnfs/false.cnf cnfs/false.cnf|grep VERIFIED`" ]
+  then
+    msg "checking proofs with '$drattrim'"
+    proofsmod3=0
+  else
+    msg "checking 'drat-trim cnfs/false.cnf cnfs/false.cnf' failed"
+    drattrim=""
+  fi
 else
-  msg "could not find 'drat-trim'"
-  msg "(you might want to add it to your path for more thorough checking"
+  msg "could not find 'drat-trim' ('type drat-trim' failed)"
 fi
+
+[ "$drattrim" ] || \
+  msg "(make sure 'drat-trim ' is found for more thorough testing)"
 
 run () {
   expected=$1

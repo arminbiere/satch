@@ -11,7 +11,7 @@ pairwise: gencombi
 	./gencombi | ./checkconfig.sh
 clean:
 	rm -f libsatch.* satch gencombi testapi *.o makefile config.c
-	rm -f *~ *.gcda *.gcno *.gcov gmon.out
+	rm -f *~ *.gcda *.gcno *.gcov gmon.out cnfs/*.proof
 config.c: main.c satch.c satch.h VERSION mkconfig.sh makefile
 	./mkconfig.sh > $@
 catch.o: catch.c catch.h makefile
