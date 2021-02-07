@@ -21,8 +21,8 @@ drattrim="`type drat-trim 2>/dev/null |awk '{print $NF}'`"
 if [ "$drattrim" ]
 then
   rm -f cnfs/false.proof
-  touch false.proof
-  if [ "`$drattrim cnfs/false.cnf cnfs/false.cnf|grep VERIFIED`" ]
+  touch cnfs/false.proof
+  if [ "`$drattrim cnfs/false.cnf cnfs/false.cnf 2>/dev/null|grep VERIFIED`" ]
   then
     msg "checking proofs with '$drattrim'"
     proofsmod3=0
@@ -60,7 +60,7 @@ run () {
     [ "$options" ] && command="$command $options"
     [ "$proof" ] && command="$command $proof"
   fi
-  echo -n "$command # expected '$expected'"
+  printf "$command # expected '$expected'"
   $command 1>/dev/null 2>/dev/null
   status=$?
   if [ $status = $expected ]

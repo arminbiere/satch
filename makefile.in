@@ -14,9 +14,9 @@ clean:
 	rm -f *~ *.gcda *.gcno *.gcov gmon.out cnfs/*.proof
 config.c: main.c satch.c satch.h VERSION mkconfig.sh makefile
 	./mkconfig.sh > $@
-catch.o: catch.c catch.h makefile
+catch.o: catch.c catch.h stack.h makefile
 config.o: config.c satch.h makefile
-satch.o: satch.c satch.h makefile
+satch.o: satch.c satch.h features.h makefile
 gencombi.o: gencombi.c satch.h makefile
 main.o: main.c satch.h makefile
 libsatch.a: catch.o config.o satch.o makefile

@@ -14,30 +14,56 @@ where '<option>' is one of the following:
 -p | --pedantic   pedantic compilation ('-Werror -std=c99 --pedantic')
                  
 --no-block        disable blocking literals (thus slower propagation)
+--no-bump         disable variable bumping (during conflict analysis)
 --no-compact      disable compact watch data structures (slower + more space)
 --no-learn        disable clause learning (do not add learned clauses)
+--no-focused      disable focused mode and always use stable mode instead
+--no-minimize     disable clause minimization (of learned 1st UIP clause)
 --no-reduce       disable clause reduction (keep learned clauses forever)
 --no-restart      disable restarting (otherwise moving average based)
 --no-sort         disable sorting of bumped literals in focused mode
---no-stable       disable switching between focused and stable mode
+--no-stable       disable stable mode and always use focused mode instead
 --no-variadic     disable embedding literals as variadic array into clauses
+--no-vmtf         disable VMTF and always use VSIDS instead
+--no-vsids        disable VSIDS and always use VMTF instead
 
 -f...             passed to compiler directly (like '-fsanitize=address')
 EOF
 }
 
+############################################################################
+
+if [ -t 1 ]
+then
+  BOLD="\033[1m"
+  NORMAL="\033[0m"
+  RED="\033[1;31m"
+else
+  BOLD=""
+  NORMAL=""
+  RED=""
+fi
+
 die () {
-  echo "configure: error: $*" 1>&2
+  echo "${BOLD}configure: ${RED}error:${NORMAL} $*" 1>&2
   exit 1
 }
+
+############################################################################
+
+# Basic options.
 
 debug=no
 check=no
 symbols=no
 pedantic=no
 
+# Options to disable features (see also 'OPTIONS.md').
+
 block=yes
+bump=yes
 compact=yes
+focused=yes
 learn=yes
 minimize=yes
 reduce=yes
@@ -45,8 +71,14 @@ restart=yes
 sort=yes
 stable=yes
 variadic=yes
+vmtf=yes
+vsids=yes
+
+# Additional options such as '-f...'.
 
 options=""
+
+############################################################################
 
 while [ $# -gt 0 ]
 do
@@ -63,14 +95,18 @@ do
     -p|--pedantic) pedantic=yes;;
 
     --no-block) block=no;;
+    --no-bump) bump=no;;
     --no-compact) compact=no;;
-    --no-minimize) minimize=no;;
+    --no-focused) focused=no;;
     --no-learn) learn=no;;
+    --no-minimize) minimize=no;;
     --no-reduce) reduce=no;;
     --no-restart) restart=no;;
     --no-sort) sort=no;;
     --no-stable) stable=no;;
     --no-variadic) variadic=no;;
+    --no-vmtf) vmtf=no;;
+    --no-vsids) vsids=no;;
 
     -f*) options="$options $1";;
 
@@ -78,6 +114,14 @@ do
   esac
   shift
 done
+
+############################################################################
+
+# All checks of incompatible options.  Keep this in sync with the
+# 'incompatible' array in 'gencombi.c' (checked with 'make pairwise') as well
+# as with the corresponding checks in 'satch.c' (this needs to be checked
+# manually even though './gencombi -a -3 | ./checkconfig.sh' should catch
+# missing checks here).  See also 'OPTIONS.md' for more information.
 
 [ $debug = yes -a $check = yes ] && \
   die "'--debug' implies '--check'"
@@ -88,14 +132,46 @@ done
 [ $block = no -a $compact = no ] && \
   die "'--no-block' implies '--no-compact'"
 
-[ $learn = no -a $reduce = no ] && \
-  die "'--no-learn' implies '--no-reduce'"
+if [ $bump = no ]
+then
+  [ $sort = no ] && \
+    die "'--no-bump' implies '--no-sort'"
 
-[ $learn = no -a $minimize = no ] && \
-  die "'--no-learn' implies '--no-minimize'"
+  [ $vmtf = no ] && \
+    die "'--no-bump' implies '--no-vmtf'"
 
-[ $restart = no -a $stable = no ] && \
-  die "'--no-restart' implies '--no-stable'"
+  [ $vsids = no ] && \
+    die "'--no-bump' implies '--no-vsids'"
+fi
+
+if [ $focused = no ]
+then
+  [ $stable = no ] && \
+    die "can not combine '--no-focused' and '--no-stable'"
+
+  [ $vmtf = no ] && \
+    die "'--no-focused' by default implies '--no-vmtf'"
+fi
+
+if [ $learn = no ]
+then
+  [ $reduce = no ] && \
+    die "'--no-learn' implies '--no-reduce'"
+
+  [ $minimize = no ] && \
+    die "'--no-learn' implies '--no-minimize'"
+fi
+
+[ $stable = no -a $vsids = no ] && \
+  die "'--no-stable' by default implies '--no-vsids'"
+
+[ $vmtf = no -a $sort = no ] && \
+  die "'--no-vmtf' implies '--no-sort'"
+
+[ $vmtf = no -a $vsids = no ] && \
+  die "can not combine '--no-vmtf' and '--no-vsids'"
+
+############################################################################
 
 CC=gcc
 
@@ -116,6 +192,7 @@ fi
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 CFLAGS="$CFLAGS$options"
 [ $block = no ] && CFLAGS="$CFLAGS -DNBLOCK"
+[ $bump = no ] && CFLAGS="$CFLAGS -DNBUMP"
 [ $compact = no ] && CFLAGS="$CFLAGS -DNCOMPACT"
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $learn = no ] && CFLAGS="$CFLAGS -DNLEARN"
@@ -125,9 +202,13 @@ CFLAGS="$CFLAGS$options"
 [ $sort = no ] && CFLAGS="$CFLAGS -DNSORT"
 [ $stable = no ] && CFLAGS="$CFLAGS -DNSTABLE"
 [ $variadic = no ] && CFLAGS="$CFLAGS -DNVARIADIC"
+[ $vmtf = no ] && CFLAGS="$CFLAGS -DNVMTF"
+[ $vsids = no ] && CFLAGS="$CFLAGS -DNVSIDS"
 
 COMPILE="$CC $CFLAGS"
 echo "$COMPILE"
+
+############################################################################
 
 rm -f makefile
 sed "s#@COMPILE@#$COMPILE#" makefile.in > makefile

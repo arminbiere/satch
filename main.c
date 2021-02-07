@@ -471,7 +471,7 @@ flush_printed_values (void)
   size_buffer = 0;
 }
 
-static void
+static inline void
 print_value (int lit)
 {
   char tmp[32];

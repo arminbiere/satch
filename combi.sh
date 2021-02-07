@@ -3,7 +3,8 @@
 # 4-fold combinatorial testing of all configurations
 
 basic="default pedantic debug check symbols"
-features="sort block compact learn reduce restart stable variadic"
+features="sort block compact focused learn minimize"
+features="$features reduce restart stable variadic vmtf vsids"
 
 echo "basic: $basic"
 echo "features: $features"
@@ -27,8 +28,16 @@ filter () {
     debugcheck) filtered=yes;;
     debugsymbols) filtered=yes;;
     noblocknocompact) filtered=yes;;
+    nobumpnosort) filtered=yes;;
+    nobumpnovmtf) filtered=yes;;
+    nobumpnovsids) filtered=yes;;
+    nofocusednostable) filtered=yes;;
+    nofocusednovmtf) filtered=yes;;
+    nolearnnominimize) filtered=yes;;
     nolearnnoreduce) filtered=yes;;
-    norestartnostable) filtered=yes;;
+    nosortnovmtf) filtered=yes;;
+    nostablenovsids) filtered=yes;;
+    novmtfnovsids) filtered=yes;;
   esac
 }
 

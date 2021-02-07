@@ -541,7 +541,7 @@ checker_garbage_collection (struct checker *checker)
 // Add and watch a clause unless the clause is actually empty or a unit
 // clause which then is propagated instead.  The user code is of course
 // allowed to add clauses which contain literals falsified by the checker
-// assignment but later might actually remove the as is (with the falsified
+// assignment but later might actually delete them as is (with the falsified
 // literals still in it).  Therefore we also add falsified literals,
 // otherwise we can not find the extended clause later.
 
@@ -625,7 +625,7 @@ checker_add_clause (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
-// The remove function works in a similar way but uses marks flags set in
+// The delete function works in a similar way but uses marks flags set in
 // 'checker_trivial_clause' to compare clauses.  We try all literals which
 // is slightly redundant (a one watch scheme for finding the clause would be
 // enough).  In principle we could skip one literal (say the one with the
@@ -633,7 +633,7 @@ checker_add_clause (struct checker *checker)
 // that list anyhow, and thus this optimization does not give much.
 
 static void
-checker_remove_clause (struct checker *checker)
+checker_internal_delete_clause (struct checker *checker)
 {
   const size_t size = SIZE (checker->clause);
   assert (size < UINT_MAX);
@@ -699,7 +699,7 @@ checker_remove_clause (struct checker *checker)
 	}
     }
 
-  fatal_error ("clause requested to remove not found");
+  fatal_error ("clause requested to delete not found");
 }
 
 /*------------------------------------------------------------------------*/
@@ -944,7 +944,10 @@ checker_add_original_clause (struct checker *checker)
     checker_log_clause (checker, "original");
 #endif
   if (checker->inconsistent)
-    return;
+    {
+      CLEAR (checker->clause);
+      return;
+    }
   checker->original++;
   if (!checker_trivial_clause (checker))
     checker_add_clause (checker);
@@ -960,7 +963,10 @@ checker_add_learned_clause (struct checker *checker)
     checker_log_clause (checker, "learned");
 #endif
   if (checker->inconsistent)
-    return;
+    {
+      CLEAR (checker->clause);
+      return;
+    }
   checker->learned++;
   check_clause_implied (checker);
   if (!checker_trivial_clause (checker))
@@ -974,12 +980,15 @@ checker_delete_clause (struct checker *checker)
   REQUIRE_NON_ZERO_CHECKER ();
 #ifndef NDEBUG
   if (checker->logging)
-    checker_log_clause (checker, "remove");
+    checker_log_clause (checker, "delete");
 #endif
   if (checker->inconsistent)
-    return;
+    {
+      CLEAR (checker->clause);
+      return;
+    }
   checker->deleted++;
   if (!checker_trivial_clause (checker))
-    checker_remove_clause (checker);
+    checker_internal_delete_clause (checker);
   checker_clear_clause (checker);
 }

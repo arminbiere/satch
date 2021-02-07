@@ -14,6 +14,23 @@ main (void)
   }
   {
     struct satch *solver = satch_init ();
+    satch_add (solver, 0);
+    int res = satch_solve (solver);
+    assert (res == 20);
+    satch_release (solver);
+  }
+  {
+    struct satch *solver = satch_init ();
+    satch_add (solver, 1);
+    satch_add (solver, 0);
+    int res = satch_solve (solver);
+    assert (res == 10);
+    int value = satch_val (solver, 1);
+    assert (value == 1);
+    satch_release (solver);
+  }
+  {
+    struct satch *solver = satch_init ();
     satch_add (solver, 1), satch_add (solver, 2), satch_add (solver, 0);
     satch_add (solver, 1), satch_add (solver, -2), satch_add (solver, 0);
     satch_add (solver, -1), satch_add (solver, 2), satch_add (solver, 0);

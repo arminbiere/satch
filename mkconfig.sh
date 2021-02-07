@@ -19,8 +19,14 @@ satch_version (void)
 #ifdef NBLOCK
   "-block"
 #endif
+#ifdef NBUMP
+  "-bump"
+#endif
 #ifdef NCOMPACT
   "-compact"
+#endif
+#ifdef NFOCUSED
+  "-focused"
 #endif
 #ifdef NLEARN
   "-learn"
@@ -42,6 +48,12 @@ satch_version (void)
 #endif
 #ifdef NVARIADIC
   "-variadic"
+#endif
+#ifdef NVMTF
+  "-vmtf"
+#endif
+#ifdef NVSIDS
+  "-vsids"
 #endif
   ;
 }

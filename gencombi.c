@@ -42,26 +42,56 @@ static const char * usage =
 // abbreviations directly into the list of options).
 
 static const char *options[] = {
+
+  // Basic options ordered with most likely failing compilation first.
+
   "--pedantic", "--debug", "--check", "--symbols",
-  "--no-sort", "--no-block", "--no-compact", "--no-learn",
-  "--no-reduce", "--no-restart", "--no-stable", "--no-variadic",
+
+  // Options to disable features sorted alphabetically.  During
+  // initialization 'features' is set to point to the first.
+
+  "--no-block",
+  "--no-bump",
+  "--no-compact",
+  "--no-focused",
+  "--no-learn",
+  "--no-minimize",
+  "--no-reduce",
+  "--no-restart",
+  "--no-sort",
+  "--no-stable",
+  "--no-variadic",
+  "--no-vmtf",
+  "--no-vsids",
+
   0
 };
+
+// Pairs of implie / incompatible options (sorted alphabetically also
+// within the individual pairs).
 
 static const char *incompatible[] = {
   "--check", "--debug",
   "--debug", "--symbols",
   "--no-block", "--no-compact",
+  "--no-bump", "--no-sort",
+  "--no-bump", "--no-vmtf",
+  "--no-bump", "--no-vsids",
+  "--no-focused", "--no-stable",
+  "--no-focused", "--no-vmtf",
+  "--no-learn", "--no-minimize",
   "--no-learn", "--no-reduce",
-  "--no-restart", "--no-stable",
+  "--no-sort", "--no-vmtf",
+  "--no-stable", "--no-vsids",
+  "--no-vmtf", "--no-vsids",
   0,
 };
 
 static const char *abbrevs[] = {
-  "--debug", "-g",
   "--check", "-c",
-  "--symbols", "-s",
+  "--debug", "-g",
   "--pedantic", "-p",
+  "--symbols", "-s",
   0
 };
 
@@ -97,6 +127,18 @@ die (const char *fmt, ...)
   va_end (ap);
   fputc ('\n', stderr);
   exit (1);
+}
+
+static void
+msg (const char *fmt, ...)
+{
+  fputs ("c ", stderr);
+  va_list ap;
+  va_start (ap, fmt);
+  vfprintf (stderr, fmt, ap);
+  va_end (ap);
+  fputc ('\n', stderr);
+  fflush (stderr);
 }
 
 static void
@@ -160,6 +202,36 @@ init_valid (void)
       valid[p] = allocate (noptions * sizeof *valid[p]);
       for (int q = 0; q < noptions; q++)
 	valid[p][q] = !filter (options[p], options[q]);
+    }
+}
+
+// Sets 'features' and does some sanity checking.
+
+static void
+init_options (void)
+{
+  const char **features = 0;
+
+  for (const char **p = options, *o; !features && (o = *p); p++)
+    if (o[0] == '-' && o[1] == '-' && o[2] == 'n' && o[3] == 'o'
+	&& o[4] == '-')
+      features = p;
+
+  assert (features);
+
+  for (const char **p = features + 1; *p; p++)
+    assert (strcmp (p[-1], *p) < 0);
+}
+
+static void
+init_incompatible (void)
+{
+  for (const char **p = incompatible; *p; p += 2)
+    {
+      assert (p[1]);
+      assert (strcmp (p[0], p[1]) < 0);
+      if (incompatible < p)
+	assert (strcmp (p[-2], p[0]) <= 0);
     }
 }
 
@@ -310,7 +382,7 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
     }
 
   if (dimacs)
-    printf ("c gencombi --dimacs %d\n", k);
+    msg ("gencombi --dimacs %d", k);
 
   // Compute number of clauses for verbose message as well as DIMACS.
 
@@ -320,15 +392,14 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	{
 	  if (dimacs)
 	    for (int p = 0; p < noptions; p++)
-	      printf ("c option[%d,%d] = %d\n", i, p, option[i][p]);
+	      msg ("option[%d,%d] = %d", i, p, option[i][p]);
 
 	  for (int p = 0; p + 1 < noptions; p++)
 	    for (int q = p + 1; q < noptions; q++)
 	      if (valid[p][q])
 		{
 		  if (dimacs)
-		    printf ("c pair[%d,%d,%d] = %d\n", i, p, q,
-			    pair[i][p][q]);
+		    msg ("pair[%d,%d,%d] = %d", i, p, q, pair[i][p][q]);
 
 		  nclauses += 3;
 		  if (!i)
@@ -342,8 +413,8 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	printf ("p cnf %d %d\n", nvars, nclauses);
 
       if (verbose)
-	printf ("c need %d variables and %d clauses for k = %d\n",
-		nvars, nclauses, k), fflush (stdout);
+	msg ("need %d variables and %d clauses for k = %d",
+	     nvars, nclauses, k), fflush (stdout);
     }
 
   // First add all the pairs 'pair[i][p][q] = option[i][p] & option[i][q]'
@@ -397,8 +468,8 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
       const double seconds = end - start;
       if (verbose)
 	{
-	  printf ("c solver returns %d for k = %d in %.2f seconds\n",
-		  status, k, seconds);
+	  msg ("solver returns %d for k = %d in %.2f seconds",
+	       status, k, seconds);
 	  fflush (stdout);
 	}
       if (status == 10)
@@ -494,6 +565,8 @@ main (int argc, char **argv)
   if (invalid && !all)
     die ("can only use '%s' with '-a' or '--all'", invalid);
 
+  init_options ();
+  init_incompatible ();
   init_valid ();
 
   if (all)
@@ -511,7 +584,7 @@ main (int argc, char **argv)
       while (!encode (i++))
 	;
       if (verbose)
-	printf ("c used %.2f seconds in total\n", satch_process_time ());
+	msg ("used %.2f seconds in total", satch_process_time ());
     }
 
   reset_valid ();
