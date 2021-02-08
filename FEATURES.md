@@ -11,7 +11,7 @@ the 'foo' feature with the C preprocessor the following steps are necessary:
   2. Add the same description for 'NFOO' to 'features.h'.
   3. Then add 'foo=yes' initialization in './configure'.
   4. Parse the '--no-foo' command line option in './configure'.
-  5. Add '[ $foo = no ] && -DFOO' to './configure' too.
+  5. Add '[ $foo = no ] && -DNFOO' to './configure' too.
   6. Add three corresponding lines to 'mkconfig.sh'.
 
 Then you might start using that option '#ifndef NFOO' in the code.  After it
