@@ -1,9 +1,11 @@
 #!/bin/sh
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NONE='\033[0m'
-
+if [ -t 1 ] ; then
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  NONE='\033[0m'
+fi
+  
 die () {
   echo "tatch.sh: error: $*" 1>&2
   exit 1
