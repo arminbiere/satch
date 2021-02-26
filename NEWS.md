@@ -3,8 +3,8 @@ Release 0.4.0
 
 - More precise ticks management.
 - Combinatorial tester `gencombi.c` uses the incremental feature for
-  scalability (needs to now with all those new features).
-- Limited incremental mode (conflict limited but now allowing to add new
+  scalability (needs it with all those new features).
+- Limited incremental mode (conflict limited but not allowing to add new
   clauses nor assumptions).
 - Original, inverted (INVERTED) and best (BEST) rephasing.
 - Made phase saving a feature (SAVE).

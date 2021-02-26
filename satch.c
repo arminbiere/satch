@@ -4502,7 +4502,6 @@ rephase (struct satch *solver)
 	   "new rephase limit %" PRIu64 " conflicts after %" PRIu64,
 	   solver->limits.rephase, interval);
 #ifndef NTARGET
-  COVER (!solver->stable);
   if (solver->stable)
     {
       LOG ("reset target size");

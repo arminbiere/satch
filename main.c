@@ -98,13 +98,13 @@ static const char *usage =
 
 static struct
 {
-  int close;			// 0=no-close, 1=fclose, 2=pclose
+  int close;			// Set to 0=no-close, 1=fclose, 2=pclose.
   FILE *file;
   const char *path;
 } input, proof;
 
-static long lineno = 1;		// line number for parse error messages
-static uint64_t bytes;		// read bytes for verbose message
+static long lineno = 1;		// Line number for parse error messages.
+static uint64_t bytes;		// Read bytes for verbose message.
 
 /*------------------------------------------------------------------------*/
 
@@ -456,7 +456,7 @@ parse (void)
 
 /*------------------------------------------------------------------------*/
 
-// These two functions support pretty printer of satisfying assignments.
+// These two functions support pretty printing of satisfying assignments.
 // According to the SAT competition output format these witnesses consist of
 // 'v ...' lines containing the literals which are true followed by '0'.  We
 // want to restrict these lines to 78 characters (including the 'v ' prefix)
@@ -492,8 +492,8 @@ print_value (int lit)
 // For compressed files just opening a pipe will not return a zero file
 // pointer if the file does not exist.  Instead this would produce a strange
 // error message and thus we always check for being able to access the file
-// explicitly (even though this is only need for compressed files).  We use
-// two low-level functions 'stat' and 'access' for this check which
+// explicitly (even though this is only needed for compressed files).  We
+// use two low-level functions 'stat' and 'access' for this check which
 // makes this code slightly more operating system dependent.
 
 bool
