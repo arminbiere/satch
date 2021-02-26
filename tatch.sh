@@ -1,5 +1,9 @@
 #!/bin/sh
 
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NONE='\033[0m'
+
 die () {
   echo "tatch.sh: error: $*" 1>&2
   exit 1
@@ -24,10 +28,10 @@ then
   touch cnfs/false.proof
   if [ "`$drattrim cnfs/false.cnf cnfs/false.cnf 2>/dev/null|grep VERIFIED`" ]
   then
-    msg "checking proofs with '$drattrim'"
+    msg "${GREEN}checking proofs with '$drattrim'$NONE"
     proofsmod3=0
   else
-    msg "checking 'drat-trim cnfs/false.cnf cnfs/false.cnf' failed"
+    msg "${RED}checking 'drat-trim cnfs/false.cnf cnfs/false.cnf' failed$NONE"
     drattrim=""
   fi
 else
@@ -72,9 +76,9 @@ run () {
         output="`$drattrim $cnf $proof 2>/dev/null|grep 's VERIFIED$'`"
 	if [ "$output" ]
 	then 
-	  echo " proof OK"
+	  echo "$GREEN proof OK$NONE"
 	else
-	  echo " proof FAILED"
+	  echo "$RED proof FAILED$NONE"
 	  echo "$drattrim $cnf $proof"
 	  exit 1
 	fi
@@ -83,10 +87,10 @@ run () {
 	exit 1
       fi
     else
-      echo " OK"
+      echo "$GREEN OK$NONE"
     fi
   else
-    echo " status '$status' FAILED"
+    echo "$RED status '$status' FAILED$NONE"
     exit 1
   fi
 }
