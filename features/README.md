@@ -70,7 +70,7 @@ The build process for `generate` is standard.  Just use
   
     ./configure && make
 
-to build 'generate' which uses
+to build 'generate' which uses the following files.
 
 - [`makefile.in`](makefile.in)  is the  makefile template
 - [`generate.c`](generate.c)    is the source code of the feature file generator
@@ -83,9 +83,14 @@ not change the 'CSV' files.  Otherwise just call
 
     ./generate
 
-to generate all the files above which are also under revision control.  You
-can also use 
+to generate all the files above.  These generate files are also under
+revision control since changing features is rare.  This avoids building
+and executing `generate` during the build process of the solver but requires
+that you update the generated files (by calling `generate`) manually after
+changing one of the "CSV" files.
+
+You can also use the following command instead.
 
     ./generate -v
 
-which produces some more information.
+It produces some more information as verbose messages.
