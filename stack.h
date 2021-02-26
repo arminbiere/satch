@@ -5,10 +5,10 @@
 #ifndef _stack_h_INCLUDED
 #define _stack_h_INCLUDED
 
-// Generic stack implementation similar to 'std::vector' API in C++.
-// In order to use it you need to provide 'fatal_error' below which could
-// also be a local macro in the user compilation unit since this
-// implementation here is header only and only uses macros. Because of type
+// Generic stack implementation with an API similar to the 'std::vector'
+// API in C++. In order to use it you need to provide 'fatal_error' below
+// which could also be a local macro in the user compilation unit since this
+// implementation here is header-only and only uses macros. Because of type
 // issues this part would not be that simple with inlined functions.
 
 /*------------------------------------------------------------------------*/
@@ -130,7 +130,7 @@ struct int_stack		// Generic stack with 'int' elements.
 
 #define all_elements_on_stack(TYPE,E,S) \
   TYPE E, * PTR_ ## E = (S).begin, * const END_ ## E = (S).end; \
-  (PTR_ ## E != END_ ## E) && (E = *PTR_ ## E, true); ++PTR_ ## E
+  (PTR_ ## E != END_ ## E) && (E = *PTR_ ## E, 1); ++PTR_ ## E
 
 // For pointer elements we need additional '*'s in the declaration and
 // the 'TYPE' argument is the base type of the pointer.  To iterate a stack

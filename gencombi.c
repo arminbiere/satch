@@ -14,22 +14,24 @@ static const char * usage =
 "  -a | --all      print all possible combinations of options up to '<k>'\n"
 "  -d | --dimacs   CNF encoding all pairs for '<k>'\n"
 "  -i | --invalid  only print invalid combinations\n"
+"  -u | --unsorted do not sort configurations\n"
 "  -v | --verbose  set verbose mode\n"
+"  -w | --weak     do not enforce absence of pairs\n"
 "\n"
 "This is a tool to generate a list of configuration options. The list of\n"
-"possible options as well as incompatible pairs are hard coded into the\n"
-"program (thus for now just match those from SATCH).\n"
+"possible options as well as incompatible pairs are hard-coded into the\n"
+"program at compile time at this point.\n"
 "\n"
 "By default the SAT solver SATCH is used to search for a list of as few\n"
 "as possible configurations which contain all valid pairs of options and\n"
 "prints them. For all pair of options we also add a constraint that their\n"
 "combination should not occur in at least one chosen configuration.\n"
 "\n"
-"Using '--all' generates all valid combinations of options by combining\n" 
-"of at most '<k>' options.  Again all configurations are printed.\n"
+"Using '--all' or '-a' generates all valid combinations of options by\n"
+"combining at most '<k>' options.  Again all configurations are printed.\n"
 "\n"
 "The third mode produces a CNF in DIMACS format which is satisfiable if\n"
-"there '<k>' configurations cover all pairs of valid options.\n"
+"the '<k>' configurations cover all pairs of valid options.\n"
 ;
 
 // *INDENT-ON*
@@ -50,41 +52,23 @@ static const char *options[] = {
   // Options to disable features sorted alphabetically.  During
   // initialization 'features' is set to point to the first.
 
-  "--no-block",
-  "--no-bump",
-  "--no-compact",
-  "--no-focused",
-  "--no-learn",
-  "--no-minimize",
-  "--no-reduce",
-  "--no-restart",
-  "--no-sort",
-  "--no-stable",
-  "--no-variadic",
-  "--no-vmtf",
-  "--no-vsids",
+#include "features/list.h"
 
-  0
+  0				// Zero sentinel
 };
 
-// Pairs of implie / incompatible options (sorted alphabetically also
+// Pairs of implied / incompatible options (sorted alphabetically also
 // within the individual pairs).
 
 static const char *incompatible[] = {
+
   "--check", "--debug",
   "--debug", "--symbols",
-  "--no-block", "--no-compact",
-  "--no-bump", "--no-sort",
-  "--no-bump", "--no-vmtf",
-  "--no-bump", "--no-vsids",
-  "--no-focused", "--no-stable",
-  "--no-focused", "--no-vmtf",
-  "--no-learn", "--no-minimize",
-  "--no-learn", "--no-reduce",
-  "--no-sort", "--no-vmtf",
-  "--no-stable", "--no-vsids",
-  "--no-vmtf", "--no-vsids",
-  0,
+
+#include "features/invalid.h"
+
+  0,				// Zero sentinel.
+
 };
 
 static const char *abbrevs[] = {
@@ -112,7 +96,10 @@ static const char *abbrevs[] = {
 static const char *all;		// Option to print all combinations.
 static const char *dimacs;	// Option to print DIMACS files.
 static const char *invalid;	// Option to only print invalid.
+static const char *unsorted;	// Option to disable sorting.
 static const char *verbose;	// Option to increase verbosity.
+static const char *weak;	// Option for weaker check.
+
 static int k = -1;
 
 /*------------------------------------------------------------------------*/
@@ -132,7 +119,8 @@ die (const char *fmt, ...)
 static void
 msg (const char *fmt, ...)
 {
-  fputs ("c ", stderr);
+  if (!verbose)
+    return;
   va_list ap;
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
@@ -156,6 +144,16 @@ allocate (size_t bytes)
   return res;
 }
 
+static void *
+callocate (size_t bytes)
+{
+  void *res = malloc (bytes);
+  if (bytes && !res)
+    out_of_memory (bytes);
+  memset (res, 0, bytes);
+  return res;
+}
+
 /*------------------------------------------------------------------------*/
 
 static const char *
@@ -170,7 +168,16 @@ shorten (const char *s)
 /*------------------------------------------------------------------------*/
 
 static int noptions;		// Number of options.
-static signed char **valid;	// Table of valid option pairs.
+
+static char **valid;		// Indicates valid option pairs.
+
+static int found_leader;
+static int leader[2];		// First pair which can be combined.
+
+static char *constrained;	// Counts how often an option is constrained.
+
+static int nindependent;
+static char **independent;	// Indicates independent option pairs.
 
 // Return non-zero if the given option pair is invalid / incompatible.
 
@@ -196,13 +203,57 @@ init_valid (void)
     noptions++;
 
   valid = allocate (noptions * sizeof *valid);
+  constrained = callocate (noptions * sizeof *constrained);
 
   for (int p = 0; p < noptions; p++)
     {
       valid[p] = allocate (noptions * sizeof *valid[p]);
+
       for (int q = 0; q < noptions; q++)
-	valid[p][q] = !filter (options[p], options[q]);
+	{
+	  int filtered = filter (options[p], options[q]);
+	  if (filtered)
+	    {
+	      valid[p][q] = 0;
+	      if (p < q)
+		{
+		  constrained[p]++;
+		  constrained[q]++;
+		}
+	      continue;
+	    }
+	  valid[p][q] = 1;
+	  if (found_leader)
+	    continue;
+	  leader[0] = p, leader[1] = q;
+	  found_leader = 1;
+	  msg ("leading pair '%s,%s'", options[p], options[q]);
+	}
     }
+
+  independent = allocate (noptions * sizeof *independent);
+
+  for (int p = 0; p < noptions; p++)
+    {
+      independent[p] = callocate (noptions * sizeof *independent[p]);
+
+      if (constrained[p] != 1)
+	continue;
+
+      for (int q = p + 1; q < noptions; q++)
+	{
+	  if (constrained[q] != 1)
+	    continue;
+	  if (valid[p][q])
+	    continue;
+	  msg ("independent pair '%s,%s'", options[p], options[q]);
+	  independent[p][q] = 1;
+	  nindependent++;
+	  break;
+	}
+    }
+
+  msg ("found in total %d independent pairs", nindependent);
 }
 
 // Sets 'features' and does some sanity checking.
@@ -241,6 +292,12 @@ reset_valid (void)
   for (int p = 0; p < noptions; p++)
     free (valid[p]);
   free (valid);
+
+  free (constrained);
+
+  for (int p = 0; p < noptions; p++)
+    free (independent[p]);
+  free (independent);
 }
 
 /*========================================================================*/
@@ -300,18 +357,14 @@ generate (int current, int select)
 // configurations which cover all pairs once also not once (uses SAT).    //
 /*========================================================================*/
 
-static int noptions, nvars, nclauses;
-static struct satch *solver;
-
-static int ***pair;		// DIMACS variable index table for pairs.
-static int **option;		// DIMACS variable index for options.
+static int noptions;
 
 /*------------------------------------------------------------------------*/
 
 // Print literals and clauses or encode them into the SAT solver.
 
 static void
-literal (int lit)
+literal (struct satch *solver, int lit)
 {
   if (dimacs)
     {
@@ -323,44 +376,152 @@ literal (int lit)
 }
 
 static void
-binary (int a, int b)
+unary (struct satch *solver, int a)
 {
-  literal (a);
-  literal (b);
-  literal (0);
+  literal (solver, a);
+  literal (solver, 0);
 }
 
 static void
-ternary (int a, int b, int c)
+binary (struct satch *solver, int a, int b)
 {
-  literal (a);
-  literal (b);
-  literal (c);
-  literal (0);
+  literal (solver, a);
+  literal (solver, b);
+  literal (solver, 0);
+}
+
+static void
+ternary (struct satch *solver, int a, int b, int c)
+{
+  literal (solver, a);
+  literal (solver, b);
+  literal (solver, c);
+  literal (solver, 0);
 }
 
 /*------------------------------------------------------------------------*/
 
-// The main encoder to produce a CNF which is satisfiable if the there is a
-// list of configurations of size 'k' which covers all valid pairs of
-// options.  The CNF is either printed to '<stdout>' or given to the SAT
-// solver.  In the later case it is checked to be satisfiable (optionally
-// printing some verbose messages) and if so the resulting set of
-// configurations is printed to '<stdout>'. Only then the function returns a
-// non-zero result.
+// This is main encoding function to produce a CNF which is satisfiable if
+// the there is a list of configurations of size 'k' which covers all valid
+// pairs of options.  The CNF is either printed to '<stdout>' or given to
+// the SAT solver.  In the later case it is checked to be satisfiable
+// (optionally printing some verbose messages) and if so the resulting set
+// of configurations is printed to '<stdout>'. Only then the function
+// returns a non-zero result.
 
-static int
+struct frame
+{
+  int released;
+  int limit;			// Conflict limit.
+  int status;			// Result status.
+  int ***pair;			// DIMACS variable index table for pairs.
+  int **option;			// DIMACS variable index for options.
+  int **sorted;			// DIMACS variable for sorting options.
+  struct satch *solver;		// The actual solver.
+};
+
+static struct satch *
+init_frame (struct frame *frame, int k)
+{
+  frame->released = 0;
+
+  frame->pair = allocate ((k + 1) * sizeof *frame->pair);
+  frame->option = allocate ((k + 1) * sizeof *frame->option);
+
+  if (!unsorted)
+    frame->sorted = allocate ((k + 1) * sizeof *frame->sorted);
+
+  if (dimacs)
+    frame->solver = 0;
+  else
+    {
+      frame->status = 0;
+      frame->limit = 0;
+      frame->solver = satch_init ();
+    }
+
+  return frame->solver;
+}
+
+static void
+release_frame (struct frame *frame, int k)
+{
+  if (frame->released)
+    return;
+
+  frame->released = 1;
+
+  int **option = frame->option;
+  for (int i = 0; i < k; i++)
+    free (option[i]);
+  free (option);
+
+  if (!unsorted)
+    {
+      int **sorted = frame->sorted;
+      for (int i = 1; i < k; i++)
+	free (sorted[i]);
+      free (sorted);
+    }
+
+  int ***pair = frame->pair;
+  for (int i = 0; i < k; i++)
+    {
+      for (int p = 0; p + 1 < noptions; p++)
+	free (pair[i][p]);
+      free (pair[i]);
+    }
+  free (pair);
+
+  if (dimacs)
+    return;
+
+  satch_release (frame->solver);
+  msg ("frame[%d] released with status %d", k, frame->status);
+}
+
+static struct frame *frames;
+static int nframes;
+
+static struct frame *
+new_frame (int k)
+{
+  assert (!nframes || nframes == k);
+  nframes = k + 1;
+  const size_t bytes = nframes * sizeof *frames;
+  frames = realloc (frames, bytes);
+  if (!frames)
+    out_of_memory (bytes);
+  return frames + k;
+}
+
+static void
+release_frames (void)
+{
+  if (dimacs)
+    release_frame (frames + k, k);
+  else
+    for (int i = 2; i < nframes; i++)
+      release_frame (frames + i, i);
+  free (frames);
+}
+
+static void
 encode (int k)			// Thus 'encode' sees only local 'k'!
 {
-  if (!dimacs)
-    solver = satch_init ();
+  struct frame *frame = new_frame (k);
+  struct satch *solver = init_frame (frame, k);
 
-  nvars = nclauses = 0;
+  int nvars = 0;
+  int nclauses = 0;
 
-  // Allocate tables and assigned DIMACS indices.
+  if (found_leader)
+    nclauses += 2;
 
-  option = allocate ((k + 1) * sizeof *option);
-  pair = allocate ((k + 1) * sizeof *pair);
+  if (nindependent)
+    nclauses += 2 * nindependent;
+
+  int **option = frame->option;
 
   for (int i = 0; i < k; i++)
     {
@@ -368,6 +529,8 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
       for (int p = 0; p < noptions; p++)
 	option[i][p] = ++nvars;
     }
+
+  int ***pair = frame->pair;
 
   for (int i = 0; i < k; i++)
     {
@@ -381,8 +544,22 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	}
     }
 
+  if (!unsorted)
+    {
+      int **sorted = frame->sorted;
+
+      for (int i = 1; i < k; i++)
+	{
+	  sorted[i] = allocate (noptions * sizeof *sorted[i]);
+	  for (int p = 1; p < noptions; p++)
+	    sorted[i][p] = ++nvars;
+
+	  nclauses += 3 * (noptions - 1) + 2;
+	}
+    }
+
   if (dimacs)
-    msg ("gencombi --dimacs %d", k);
+    printf ("c gencombi --dimacs %d\n", k);
 
   // Compute number of clauses for verbose message as well as DIMACS.
 
@@ -392,18 +569,24 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	{
 	  if (dimacs)
 	    for (int p = 0; p < noptions; p++)
-	      msg ("option[%d,%d] = %d", i, p, option[i][p]);
+	      printf ("c option[%d,%d] = %d\n", i, p, option[i][p]);
 
 	  for (int p = 0; p + 1 < noptions; p++)
 	    for (int q = p + 1; q < noptions; q++)
 	      if (valid[p][q])
 		{
 		  if (dimacs)
-		    msg ("pair[%d,%d,%d] = %d", i, p, q, pair[i][p][q]);
+		    printf ("c pair[%d,%d,%d] = %d\n", i, p, q,
+			    pair[i][p][q]);
 
 		  nclauses += 3;
+
 		  if (!i)
-		    nclauses += 2;	// Pairs occur once and not.
+		    {
+		      nclauses += 1;	// Pairs occur once.
+		      if (!weak)
+			nclauses += 1;	// Pairs do not occur too.
+		    }
 		}
 	      else
 		nclauses++;
@@ -412,10 +595,59 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
       if (dimacs)
 	printf ("p cnf %d %d\n", nvars, nclauses);
 
-      if (verbose)
-	msg ("need %d variables and %d clauses for k = %d",
-	     nvars, nclauses, k), fflush (stdout);
+      msg ("frame[%d] encoded with %d variables and %d clauses",
+	   k, nvars, nclauses);
     }
+
+  // Trivial symmetry breaking by forcing first valid pair to be enabled in
+  // first configuration.  We put this symmetry breaking first since it
+  // involves units, which simplifies the encoded formula on-the-fly.
+
+  if (found_leader)
+    {
+      unary (solver, option[0][leader[0]]);
+      unary (solver, option[0][leader[1]]);
+    }
+
+  // Second simple to encode form of symmetry breaking uses independent
+  // pairs of incompatible options which allows to order the options within
+  // this pair arbitrarily.
+
+  if (nindependent)
+    {
+      for (int p = 0; p + 1 < noptions; p++)
+	for (int q = p + 1; q < noptions; q++)
+	  if (independent[p][q])
+	    unary (solver, option[0][p]), unary (solver, -option[0][q]);
+    }
+
+  // Third form of symmetry breaking sorts the options globally.  Our
+  // experiments however did not give any benefit in using this restriction,
+  // but it does produce nicer (sorted) configuration lists.
+
+  if (!unsorted)
+    for (int i = 1; i < k; i++)
+      {
+	int **sorted = frame->sorted;
+
+	binary (solver, option[i - 1][0], -option[i][0]),
+	  binary (solver, option[i - 1][0], sorted[i][1]),
+	  binary (solver, -option[i][0], sorted[i][1]);
+
+	for (int p = 1; p + 1 < noptions; p++)
+	  ternary (solver, -sorted[i][p], option[i - 1][p], -option[i][p]),
+	    ternary (solver, -sorted[i][p], option[i - 1][p],
+		     sorted[i][p + 1]), ternary (solver, -sorted[i][p],
+						 -option[i][p],
+						 sorted[i][p + 1]);
+
+	binary (solver, -sorted[i][noptions - 1],
+		option[i - 1][noptions - 1]), binary (solver,
+						      -sorted[i][noptions -
+								 1],
+						      -option[i][noptions -
+								 1]);
+      }
 
   // First add all the pairs 'pair[i][p][q] = option[i][p] & option[i][q]'
   // for 'valid[p][q]' pairs and disable that pair, i.e., add the clause
@@ -427,12 +659,12 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	for (int q = p + 1; q < noptions; q++)
 	  if (valid[p][q])
 	    {
-	      binary (-pair[i][p][q], option[i][p]);
-	      binary (-pair[i][p][q], option[i][q]);
-	      ternary (-option[i][p], -option[i][q], pair[i][p][q]);
+	      binary (solver, -pair[i][p][q], option[i][p]);
+	      binary (solver, -pair[i][p][q], option[i][q]);
+	      ternary (solver, -option[i][p], -option[i][q], pair[i][p][q]);
 	    }
 	  else
-	    binary (-option[i][p], -option[i][q]);
+	    binary (solver, -option[i][p], -option[i][q]);
     }
 
   // Now every pair should occur at least once (which also makes sure that
@@ -443,71 +675,82 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
       if (valid[p][q])
 	{
 	  for (int i = 0; i < k; i++)
-	    literal (pair[i][p][q]);
-	  literal (0);
+	    literal (solver, pair[i][p][q]);
+	  literal (solver, 0);
 	}
 
   // Finally every pair should not occur at least once.
 
-  for (int p = 0; p + 1 < noptions; p++)
-    for (int q = p + 1; q < noptions; q++)
-      if (valid[p][q])
-	{
-	  for (int i = 0; i < k; i++)
-	    literal (-pair[i][p][q]);
-	  literal (0);
-	}
+  if (!weak)
+    for (int p = 0; p + 1 < noptions; p++)
+      for (int q = p + 1; q < noptions; q++)
+	if (valid[p][q])
+	  {
+	    for (int i = 0; i < k; i++)
+	      literal (solver, -pair[i][p][q]);
+	    literal (solver, 0);
+	  }
+}
 
-  int status = 0;
+/*------------------------------------------------------------------------*/
 
-  if (!dimacs)
+// Solve under the current limits the formulas of all remaining solvers.
+
+static int
+solve_frame (int k)
+{
+  assert (2 <= k);
+  struct frame *frame = frames + k;
+  if (frame->status == 20)
+    return 0;
+  assert (!frame->status);
+  struct satch *solver = frame->solver;
+  if (!frame->limit)
+    frame->limit = 100;
+  else if (frame->limit < 1000)
+    frame->limit = 1000;
+  else
+    frame->limit += 100;
+  const double start = satch_process_time ();
+  msg ("frame[%d] solving with limit %d after %.2f seconds",
+       k, frame->limit, start);
+  frame->status = satch_solve (solver, frame->limit);
+  const double end = satch_process_time ();
+  const double seconds = end - start;
+  msg ("frame[%d] solved with status %d in %.2f seconds",
+       k, frame->status, seconds);
+  if (frame->status == 10)
     {
-      const double start = satch_process_time ();
-      status = satch_solve (solver);
-      const double end = satch_process_time ();
-      const double seconds = end - start;
-      if (verbose)
+      for (int i = 0; i < k; i++)
 	{
-	  msg ("solver returns %d for k = %d in %.2f seconds",
-	       status, k, seconds);
-	  fflush (stdout);
-	}
-      if (status == 10)
-	{
-	  for (int i = 0; i < k; i++)
+	  fputs ("./configure", stdout);
+	  for (int p = 0; p < noptions; p++)
 	    {
-	      fputs ("./configure", stdout);
-	      for (int p = 0; p < noptions; p++)
-		{
-		  int lit = option[i][p];
-		  int value = satch_val (solver, lit);
-		  if (value != lit)
-		    continue;
-		  fputc (' ', stdout);
-		  fputs (shorten (options[p]), stdout);
-		}
-	      fputc ('\n', stdout);
+	      int lit = frame->option[i][p];
+	      int value = satch_val (solver, lit);
+	      if (value != lit)
+		continue;
+	      fputc (' ', stdout);
+	      fputs (shorten (options[p]), stdout);
 	    }
+	  fputc ('\n', stdout);
 	}
-      satch_release (solver);
+      return 1;
     }
+  else if (frame->status == 20)
+    release_frame (frame, k);
+  else
+    assert (!frame->status);
+  return 0;
+}
 
-  // Release memory for tables (for this '<k>').  Reusing this memory does
-  // not make sense since the SAT solver will occupy at least as much.
-
-  for (int i = 0; i < k; i++)
-    free (option[i]);
-  free (option);
-
-  for (int i = 0; i < k; i++)
-    {
-      for (int p = 0; p + 1 < noptions; p++)
-	free (pair[i][p]);
-      free (pair[i]);
-    }
-  free (pair);
-
-  return status == 10;
+static int
+solve (void)
+{
+  for (int k = 2; k < nframes; k++)
+    if (solve_frame (k))
+      return 1;
+  return 0;
 }
 
 /*------------------------------------------------------------------------*/
@@ -546,8 +789,12 @@ main (int argc, char **argv)
 	set (&all, arg);
       else if (!strcmp (arg, "-d") || !strcmp (arg, "--dimacs"))
 	set (&dimacs, arg);
+      else if (!strcmp (arg, "-u") || !strcmp (arg, "--unsorted"))
+	set (&unsorted, arg);
       else if (!strcmp (arg, "-v") || !strcmp (arg, "--verbose"))
 	set (&verbose, arg);
+      else if (!strcmp (arg, "-w") || !strcmp (arg, "--weak"))
+	set (&weak, arg);
       else if (!strcmp (arg, "-i") || !strcmp (arg, "--invalid"))
 	set (&invalid, arg);
       else if (k > 0)
@@ -562,8 +809,17 @@ main (int argc, char **argv)
   else if (!dimacs && !all)
     die ("can not use '<k> = %d' in default mode", k);
 
+  if (dimacs && k < 2)
+    die ("dimacs encoding for 'k=%d' does not make sense", k);
+
   if (invalid && !all)
-    die ("can only use '%s' with '-a' or '--all'", invalid);
+    die ("can only use '%s' with '%s'", invalid, all);
+
+  if (unsorted && all)
+    die ("can not use '%s' with '%s'", unsorted, all);
+
+  if (weak && all)
+    die ("can not use '%s' with '%s'", weak, all);
 
   init_options ();
   init_incompatible ();
@@ -577,17 +833,21 @@ main (int argc, char **argv)
       free (config);
     }
   else if (dimacs)
-    (void) encode (k);
+    encode (k);
   else
     {
-      int i = 1;
-      while (!encode (i++))
-	;
-      if (verbose)
-	msg ("used %.2f seconds in total", satch_process_time ());
+      int i = 2;
+      do
+	encode (i++);
+      while (!solve ());
     }
 
   reset_valid ();
+  if (!all)
+    release_frames ();
+
+  if (!all && !dimacs)
+    msg ("used %.2f seconds in total", satch_process_time ());
 
   return 0;
 }

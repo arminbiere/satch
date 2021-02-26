@@ -1,0 +1,9 @@
+COMPILE=@COMPILE@
+all: generate
+generate: generate.c makefile
+	$(COMPILE) -o $@ $<
+clean:
+	rm -f generate makefile *~
+indent:
+	indent generate.c
+.PHONY: all clean indent

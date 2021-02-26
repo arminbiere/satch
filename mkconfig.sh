@@ -16,45 +16,7 @@ const char *
 satch_version (void)
 {
   return "$VERSION"
-#ifdef NBLOCK
-  "-block"
-#endif
-#ifdef NBUMP
-  "-bump"
-#endif
-#ifdef NCOMPACT
-  "-compact"
-#endif
-#ifdef NFOCUSED
-  "-focused"
-#endif
-#ifdef NLEARN
-  "-learn"
-#endif
-#ifdef NMINIMIZE
-  "-minimize"
-#endif
-#ifdef NREDUCE
-  "-reduce"
-#endif
-#ifdef NRESTART
-  "-restart"
-#endif
-#ifdef NSORT
-  "-sort"
-#endif
-#ifdef NSTABLE
-  "-stable"
-#endif
-#ifdef NVARIADIC
-  "-variadic"
-#endif
-#ifdef NVMTF
-  "-vmtf"
-#endif
-#ifdef NVSIDS
-  "-vsids"
-#endif
+#include "features/version.h"
   ;
 }
 

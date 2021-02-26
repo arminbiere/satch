@@ -34,8 +34,12 @@ static const char *usage =
 "  -q | --quiet         disable verbose messages\n"
 "  -v | --verbose       increment verbose level\n"
 "\n"
+"or one of these long options setting limits\n"
+"\n"
+"  --conflicts=<limit>\n"
+"\n"
 #ifdef _POSIX_C_SOURCE
-"where '<dimacs>' is an optionally compressed CNF in DIMACS format by\n"
+"and '<dimacs>' is an optionally compressed CNF in DIMACS format by\n"
 "default read from '<stdin>'.  For decompression the solver relies on\n"
 "external tools 'gzip', 'bunzip2' and 'xz' determined by the path suffix.\n"
 #else
@@ -621,9 +625,68 @@ set_option (const char **p, const char *a)
     error ("redundant '%s' and '%s'", *p, a);
 }
 
+static bool
+parse_int_option (const char *arg,
+		  const char *name, const char **option_ptr, int *value_ptr)
+{
+  if (*arg++ != '-')
+    return false;
+  if (*arg++ != '-')
+    return false;
+  int ch;
+  while ((ch = *arg++) && ch == *name)
+    name++;
+  if (*name)
+    return false;
+  if (ch != '=')
+    return false;
+  int value;
+  if ((ch = *arg++) == '-')
+    {
+      ch = *arg++;
+      if (!isdigit (ch))
+	return false;
+      value = '0' - ch;
+      while (isdigit (ch = *arg++))
+	{
+	  if (INT_MIN / 10 > value)
+	    return false;
+	  value *= 10;
+	  const int digit = ch - '0';
+	  if (INT_MIN + digit > value)
+	    return false;
+	  value -= digit;
+	}
+    }
+  else
+    {
+      if (!isdigit (ch))
+	return false;
+      value = ch - '0';
+      while (isdigit (ch = *arg++))
+	{
+	  if (INT_MAX / 10 < value)
+	    return false;
+	  value *= 10;
+	  const int digit = ch - '0';
+	  if (INT_MAX - digit < value)
+	    return false;
+	  value += digit;
+	}
+    }
+  if (ch)
+    return false;
+  set_option (option_ptr, arg);
+  *value_ptr = value;
+  return true;
+}
+
 int
 main (int argc, char **argv)
 {
+  const char *conflict_option = 0;
+  int conflict_limit = -1;
+
   for (int i = 1; i < argc; i++)
     {
       const char *arg = argv[i];
@@ -654,7 +717,13 @@ main (int argc, char **argv)
 	set_option (&quiet, arg);
       else if (!strcmp (arg, "-v") || !strcmp (arg, "--verbose"))
 	verbose += (verbose < INT_MAX);
-
+      else if (parse_int_option (arg, "conflicts",
+				 &conflict_option, &conflict_limit))
+	{
+	  if (conflict_limit < 0)
+	    error ("negative conflict limit '%d' in '%s'",
+		   conflict_limit, arg);
+	}
       else if (arg[0] == '-' && arg[1])
 	error ("invalid command option '%s' (try '-h')", arg);
       else if (proof.path)
@@ -740,7 +809,14 @@ main (int argc, char **argv)
     }
 
   parse ();
-  int res = satch_solve (solver);
+
+  if (conflict_option && !quiet)
+    {
+      satch_section (solver, "limits");
+      message ("conflict limit set to %d conflicts", conflict_limit);
+    }
+
+  int res = satch_solve (solver, conflict_limit);
 
   if (proof.file)
     {

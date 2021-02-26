@@ -5,6 +5,7 @@ testapi
 gencombi
 makefile
 config.c
+.config
 *~
 *.gcda
 *.gcno

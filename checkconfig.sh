@@ -7,9 +7,12 @@ usage: checkconfig.sh [ <option> ]
 -h | --help      print this command line option summary
 -i | --invalid   assume configuration is invalid and should fail
 
-Reads sets of configuration options from '<stdin>', one configuration per
-line, configures the solver with that set of options, compiles it and then
-runs make test
+Reads sets of configuration from '<stdin>', for instance
+
+  echo "./configure --no-block" | ./checkconfig.sh
+
+one configuration per line, configures the solver with that set of options,
+compiles it and then runs 'make test' followed by 'make clean'.
 EOF
   exit 0
 }

@@ -1,0 +1,29 @@
+#!/bin/sh
+usage () {
+  echo "configure [-h|-g]"
+  exit 0
+}
+die () {
+  echo "configure: error: $*" 1>&2 
+  exit 1
+}
+debug=no
+while [ $# -gt 0 ]
+do
+  case $1 in
+    -h) usage;;
+    -g|--debug) debug=yes;;
+    *) die "invalid option '$1' (try '-h')";;
+  esac
+  shift
+done
+COMPILE="gcc -Wall"
+if [ $debug = yes ]
+then
+  COMPILE="$COMPILE -g"
+else
+  COMPILE="$COMPILE -O3 -DNDEBUG"
+fi
+echo "$COMPILE"
+rm -f makefile
+sed -e "s#@COMPILE@#$COMPILE#" makefile.in > makefile

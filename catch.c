@@ -4,18 +4,18 @@
 
 // This is an online proof checker with the same semantics as the DRAT format
 // of the SAT competition.  More precisely we only have DRUP semantics,
-// where added clauses are implied by the formula (asymmetric tautologies).
-// It checks learned clauses and deletion of clauses on-the-fly in a forward
-// way and thus is meant for testing and debugging purposes only.  The code
-// depends on the header-only-file implementation of a generic stack in
-// 'stack.h'. Therefore this checker can easily be used for other SAT
-// solvers by just linking against 'catch.o' and using the API in 'catch.h'.
-// A failure triggers a call to 'abort ()'.  For satisfiable instances we
-// also check at the very end (during 'checker_release') that all clauses
-// ever added which are not root-level satisfied have been deleted.  This is
-// stronger than what is expected by DRUP/DRAT but useful to find clauses
-// that have been forgotten to be deleted (from the checker or in general
-// have been 'lost').
+// where added clauses are implied by the formula (also called "asymmetric
+// tautologies" or AT).  It checks learned clauses and deletion of clauses
+// on-the-fly in a slow forward manner and thus is meant for testing and
+// debugging purposes only.  The code depends on the header-only-file
+// implementation of a generic stack in 'stack.h'. Therefore this checker
+// can easily be used for other SAT solvers by just linking against
+// 'catch.o' and using the API in 'catch.h'.  A failure triggers a call to
+// 'abort ()'.  For satisfiable instances we also check at the very end
+// (during 'checker_release') that all clauses ever added which are not
+// root-level satisfied have been deleted.  This is stronger than what is
+// expected by DRUP/DRAT and useful to find clauses that have been forgotten
+// to be deleted (from the checker or in general have been 'lost').
 
 /*------------------------------------------------------------------------*/
 
@@ -31,7 +31,6 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -67,7 +66,7 @@ struct clause
 struct checker
 {
   size_t size;			// Number of allocated literals.
-  bool inconsistent;		// Empty clause added or learned.
+  int inconsistent;		// Empty clause added or learned.
   signed char *marks;		// Mark bits for clause simplification
   signed char *values;		// Values '-1', '0', '1'.
   struct clause **watches;	// Singly linked lists through 'next'.
@@ -75,7 +74,7 @@ struct checker
   struct unsigned_stack trail;	// Partial assignment trail.
   struct unsigned_stack clause;	// Temporary clause added or deleted.
 
-  // Limits to control garbage collection frequency.
+  // Limits to control garbage collection frequency (and avoid thrashing).
   //
   unsigned new_units;
   size_t wait_to_collect_satisfied_clauses;
@@ -117,9 +116,9 @@ checker_fatal_error (const char *msg, ...)
 #endif
 
 // The 'stack.h' code calls 'fatal_error' in case of out-of-memory and thus
-// we just define a macro to refer to the checker internal fatal-error
-// message.  Defining it here after 'stack.h' has been included above is
-// fine since 'stack.h' is only using macros to implement a stack.
+// we just define a macro here to refer to the checker internal fatal-error
+// function above.  Defining it here after 'stack.h' has been included above
+// is fine, since 'stack.h' is only using macros to implement a stack.
 
 #define fatal_error checker_fatal_error
 
@@ -195,9 +194,9 @@ checker_export (unsigned ilit)
 /*------------------------------------------------------------------------*/
 
 // Trivial clauses are neither added nor deleted.  A clause is trivial it if
-// contains two clashing literals or a literal assigned to true.
+// contains two clashing literals or contains a literal assigned to 'true'.
 
-static bool
+static int
 checker_trivial_clause (struct checker *checker)
 {
   assert (EMPTY (checker->trail));	// Otherwise backtrack first.
@@ -209,7 +208,7 @@ checker_trivial_clause (struct checker *checker)
   unsigned *const begin = checker->clause.begin;
 
   unsigned *q = begin;
-  bool trivial = false;
+  int trivial = 0;
 
   for (unsigned *p = begin; p != end; p++)
     {
@@ -218,14 +217,14 @@ checker_trivial_clause (struct checker *checker)
       const signed char value = values[lit];
       if (value > 0)
 	{
-	  trivial = true;
+	  trivial = 1;
 	  break;
 	}
       if (marks[lit])
 	continue;
       if (marks[NOT (lit)])
 	{
-	  trivial = true;
+	  trivial = 1;
 	  break;
 	}
       marks[lit] = 1;
@@ -256,9 +255,9 @@ checker_clear_clause (struct checker *checker)
 /*------------------------------------------------------------------------*/
 
 // We do not need decision levels.  Everything on the trail is either
-// unassigned of if the propagation started from an added units all the
+// unassigned or if the propagation started from added units then all the
 // implied literals are permanently forced to that value.  In any case the
-// trail is kept empty after unit propagation completes.
+// trail is forced to become empty after unit propagation completes.
 
 static void
 checker_assign (struct checker *checker, unsigned lit)
@@ -274,14 +273,14 @@ checker_assign (struct checker *checker, unsigned lit)
   PUSH (checker->trail, lit);
 }
 
-// This is a standard boolean constraint propagation until completion.  The
-// function returns false iff a conflict was found.  Otherwise watch lists
+// This is standard boolean constraint propagation until completion.  The
+// function returns zero iff a conflict was found.  Otherwise watch lists
 // are used and updated.  The watching scheme follows the one from 'PicoSAT'
 // and the original 'Chaff' SAT solvers with two links in each clause for
 // the two watched literals at the first two positions.  Replacement of
 // watches is otherwise standard.  We do not use blocking literals though.
 
-static bool
+static int
 checker_propagate (struct checker *checker)
 {
   const signed char *const values = checker->values;
@@ -334,7 +333,7 @@ checker_propagate (struct checker *checker)
 	      watches[replacement] = c;
 	    }
 	  else if (other_value < 0)
-	    return false;
+	    return 0;
 	  else
 	    {
 	      assert (!other_value);
@@ -343,10 +342,10 @@ checker_propagate (struct checker *checker)
 	    }
 	}
     }
-  return true;
+  return 1;
 }
 
-// Backtracking just pop literals from the trail and unassigns them.
+// Backtracking just pops literals from the trail and unassigns them.
 
 static void
 checker_backtrack (struct checker *checker)
@@ -366,10 +365,10 @@ checker_backtrack (struct checker *checker)
 
 // We do not use a global stack of clauses and thus can only reach all
 // clauses through the watch lists.  For garbage collection as well as
-// deleting clause during releasing the checker we need to make sure not to
-// traverse deleted clauses though.  The strategy to avoid is we adopt is to
-// first disconnect from all clauses the second watch.  Then deleting
-// clauses can be done by following first watch links only.
+// deleting clauses during releasing the checker we need to make sure not to
+// traverse deleted clauses though.  The strategy to avoid this is as
+// follows. We first disconnect from all clauses the second watch.  Then
+// deleting clauses can be done by following first watch links only.
 
 static void
 checker_disconnect_second_watch (unsigned lit, struct clause **p)
@@ -391,12 +390,12 @@ checker_disconnect_second_watch (unsigned lit, struct clause **p)
     }
 }
 
-// After deleting satisfied garbage collection during garbage collection we
-// need to watch the second literals in each clause again. This is slightly
-// more tricky since we the order in which we add those watches can be
-// random and thus when we traverse the first literal links we might
-// occasionally already use that literal as second watch in the watch list.
-// For 'checker_release_clauses' this is not possible.
+// After deleting satisfied clauses during garbage collection we need to
+// watch the second literals in each clause again. This is slightly more
+// tricky since the order in which we add those watches can be random and
+// thus when we traverse the first literal links we might occasionally
+// already use that literal as second watch in the watch list.  For
+// 'checker_release_clauses' this is not possible.
 
 static void
 checker_reconnect_second_watch (unsigned lit, struct clause **watches)
@@ -442,11 +441,11 @@ checker_reconnect_all_second_watches (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
-// We collect root-level satisfied clauses in garbage collections and need
-// to make sure not to thrash the checker with redundant work.  Thus we
-// delay garbage collection in arithmetically increasing intervals and also
-// only perform garbage collection if new units have been added since the
-// last garbage collection.
+// We find and collect root-level satisfied clauses in garbage collections
+// and need to make sure not to thrash the checker with redundant work.
+// Thus we delay garbage collection in arithmetically increasing intervals
+// and also only perform garbage collection if new units have been added
+// since the last garbage collection.
 
 static void
 checker_schedule_next_garbage_collection (struct checker *checker)
@@ -462,7 +461,7 @@ checker_schedule_next_garbage_collection (struct checker *checker)
   checker->wait_to_collect_satisfied_clauses = wait;
 }
 
-// Similar code to the connect / reconnect for watches above.  We assume
+// This is similar to connecting / reconnecting watches above.  We assume
 // that we only have first literals watched.  Then we can traverse those
 // first literal links and check a clause for being satisfied.  If we find a
 // satisfied clause we disconnect and delete it from the watch list.
@@ -479,7 +478,7 @@ checker_flush_satisfied_clauses (struct checker *checker, unsigned lit,
       const unsigned *const literals = c->literals;
       assert (literals[0] == lit);
       const unsigned *const end = literals + c->size;
-      bool satisfied = false;
+      int satisfied = 0;
       for (const unsigned *p = literals; !satisfied && p != end; p++)
 	{
 	  const unsigned other = *p;
@@ -538,12 +537,12 @@ checker_garbage_collection (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
-// Add and watch a clause unless the clause is actually empty or a unit
-// clause which then is propagated instead.  The user code is of course
-// allowed to add clauses which contain literals falsified by the checker
-// assignment but later might actually delete them as is (with the falsified
-// literals still in it).  Therefore we also add falsified literals,
-// otherwise we can not find the extended clause later.
+// Add and watch a clause unless the clause is empty or a unit clause.  In
+// the last case the unit is assigned and propagated instead.  The user code
+// of course allowed to add clauses which contain literals falsified by
+// the checker assignment but later might actually delete them as is (with
+// the falsified literals still in it).  Therefore we also add falsified
+// literals, otherwise we can not find the extended clause later.
 
 static void
 checker_add_clause (struct checker *checker)
@@ -578,7 +577,7 @@ checker_add_clause (struct checker *checker)
     }
 
   if (!non_false)
-    checker->inconsistent = true;
+    checker->inconsistent = 1;
   else if (non_false == 1)
     {
       assert (unit != INVALID);
@@ -589,7 +588,7 @@ checker_add_clause (struct checker *checker)
       if (checker_propagate (checker))
 	CLEAR (checker->trail);	// We are done, reset trail!
       else
-	checker->inconsistent = true;
+	checker->inconsistent = 1;
     }
   else
     {
@@ -625,12 +624,12 @@ checker_add_clause (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
-// The delete function works in a similar way but uses marks flags set in
-// 'checker_trivial_clause' to compare clauses.  We try all literals which
+// The delete function works in a similar way but uses mark flags set in
+// 'checker_trivial_clause' to compare clauses.  We try all literals, which
 // is slightly redundant (a one watch scheme for finding the clause would be
 // enough).  In principle we could skip one literal (say the one with the
 // longest watch list).  On the other removing the clause requires to walk
-// that list anyhow, and thus this optimization does not give much.
+// that list anyhow, and thus this optimization would not give much.
 
 static void
 checker_internal_delete_clause (struct checker *checker)
@@ -704,33 +703,34 @@ checker_internal_delete_clause (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
-// The most important function is at this point rather easy to implement.
-// It goes of the literals in the temporary clause and propagates their
-// negation (unless it is already assigned).  If the literal is true then
-// the clause is clearly satisfied and thus implied.  If it is false we can
-// skip it.  Otherwise we just assign the literal in the clause to false and
-// propagate.  If propagation fails (a conflict was found) 'failed' is set
-// to 'true as well and we proven that the temporary clause is unit implied.
-// If at the end no conflict was produced the clause is not unit implied and
-// we raise a fatal error message.
+// The most important function checking that an added clause is implied
+// is now rather easy to implement after propagation is in place.
+// It goes over the literals in the temporary clause and propagates their
+// negation (unless the literal is already assigned).  If the literal is
+// 'true' then the clause is clearly satisfied and thus implied.  If it is
+// false we can skip it.  Otherwise we just assign the literal in the clause
+// to 'false' and propagate.  If propagation fails (a conflict was found)
+// 'failed' is set to 'true' as well and we have proven that the temporary
+// clause is unit implied.  If at the end no conflict was produced the
+// clause is not unit implied and we raise a fatal-error message.
 
 static void
 check_clause_implied (struct checker *checker)
 {
   assert (EMPTY (checker->trail));
   const signed char *const values = checker->values;
-  bool failed = false;
+  int failed = 0;
   for (all_elements_on_stack (unsigned, lit, checker->clause))
     {
       const signed char value = values[lit];
       if (value > 0)
-	failed = true;
+	failed = 1;
       else if (!value)
 	{
 	  const unsigned not_lit = NOT (lit);
 	  checker_assign (checker, not_lit);
 	  if (!checker_propagate (checker))
-	    failed = true;
+	    failed = 1;
 	}
       if (failed)
 	break;
@@ -758,7 +758,7 @@ checker_release_clauses (struct checker *checker, struct clause *c)
       assert (!c->next[1]);
       const unsigned *const literals = c->literals;
       const unsigned *const end = literals + c->size;
-      bool satisfied = false;
+      int satisfied = 0;
       for (const unsigned *p = literals; !satisfied && p != end; p++)
 	satisfied = (values[*p] > 0);
       if (!satisfied)
@@ -818,6 +818,7 @@ checker_statistics (struct checker *checker)
   const size_t total = original + learned;
 
   // *INDENT-OFF*
+
   printf (checker_prefix
           "added %zu original clauses %.0f%%\n"
 	  checker_prefix
@@ -835,6 +836,7 @@ checker_statistics (struct checker *checker)
 	  deleted, percent (deleted, total),
 	  collected, percent (collected, total),
 	  checker->collections, checker->remained);
+
   // *INDENT-ON*
 
   fflush (stdout);

@@ -17,6 +17,7 @@ config.c: main.c satch.c satch.h VERSION mkconfig.sh makefile
 catch.o: catch.c catch.h stack.h makefile
 config.o: config.c satch.h makefile
 satch.o: satch.c satch.h features.h makefile
+satch.o: features/check.h features/init.h
 gencombi.o: gencombi.c satch.h makefile
 main.o: main.c satch.h makefile
 libsatch.a: catch.o config.o satch.o makefile
