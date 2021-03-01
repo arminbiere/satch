@@ -3190,50 +3190,62 @@ boolean_constraint_propagation (struct satch *solver)
 static void
 save_phases (struct satch *solver, signed char *phases)
 {
-  const signed char *end = solver->values + VARIABLES;
+  const signed char *end = solver->values + LITERALS;
   signed char *q = phases, tmp;
-  for (const signed char *p = solver->values; p != end; p++, q++)
+  for (const signed char *p = solver->values; p != end; p += 2, q++)
     if ((tmp = *p))
       *q = tmp;
+  assert (q == phases + VARIABLES);
 }
 
 static void
-update_target_phases (struct satch *solver, const unsigned size_trail)
+update_target_phases (struct satch *solver, const unsigned assigned)
 {
   const uint64_t targets = INC (targets);
   save_phases (solver, solver->targets);
-  solver->target = size_trail;
-  message (solver, 3, "target", targets, "targeting %u variables "
-	   "%.0f%% after %" PRIu64 " conflicts", size_trail,
-	   percent (size_trail, solver->statistics.active), CONFLICTS);
+  solver->target = assigned;
+  message (solver, 3, "target", targets, "targeting %u assigned variables "
+	   "%.0f%% after %" PRIu64 " conflicts", assigned,
+	   percent (assigned, VARIABLES), CONFLICTS);
 }
 
 #ifndef NBEST
 
 static void
-update_best_phases (struct satch *solver, const unsigned size_trail)
+update_best_phases (struct satch *solver, const unsigned assigned)
 {
   const uint64_t bests = INC (bests);
   save_phases (solver, solver->bests);
-  solver->best = size_trail;
-  message (solver, 3, "best", bests, "best trail %u variables "
-	   "%.0f%% after %" PRIu64 " conflicts", size_trail,
-	   percent (size_trail, solver->statistics.active), CONFLICTS);
+  solver->best = assigned;
+  message (solver, 3, "best", bests, "best trail %u assigned variables "
+	   "%.0f%% after %" PRIu64 " conflicts", assigned,
+	   percent (assigned, VARIABLES), CONFLICTS);
 }
 
 #endif
+
+// Make sure to care for root-level assigned variables which are flushed
+// from the trail after unit propagation on the root-level completes, when
+// computing the number of assigned variables.  The trail size itself is not
+// correct and makes target and stable phases actually behave badly.
+
+static inline unsigned
+assigned_variables (struct satch * solver)
+{
+  assert (VARIABLES >= solver->unassigned);
+  return VARIABLES  - solver->unassigned;
+}
 
 static void
 update_phases (struct satch *solver)
 {
   assert (solver->stable);
-  struct trail *trail = &solver->trail;
-  const unsigned size_trail = SIZE (*trail);
-  if (size_trail > solver->target)
-    update_target_phases (solver, size_trail);
+  const unsigned assigned = assigned_variables (solver);
+  if (assigned > solver->target)
+    update_target_phases (solver, assigned);
 #ifndef NBEST
-  if (size_trail > solver->best)
-    update_best_phases (solver, size_trail);
+  if (assigned > solver->best)
+    update_best_phases (solver, assigned);
 #endif
 }
 

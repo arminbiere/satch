@@ -1,3 +1,10 @@
+Release 0.4.2
+-------------
+
+- saving phases fixed (pointer increase by two - thanks to Mathias Fleury)
+- using assigned variables instead of trail height for target/best phases
+- scripts have now colors (thanks to Daniel Le Berre)
+
 Release 0.4.0
 -------------
 

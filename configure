@@ -35,10 +35,6 @@ then
   BOLD="\033[1m"
   NORMAL="\033[0m"
   RED="\033[1;31m"
-else
-  BOLD=""
-  NORMAL=""
-  RED=""
 fi
 
 die () {

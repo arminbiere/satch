@@ -1,12 +1,22 @@
 #!/bin/sh
 
+# Terminal colors for fancy output.
+
+if [ -t 1 ]
+then
+  BOLD="\033[1m"
+  NORMAL="\033[0m"
+  RED="\033[1;31m"
+  GREEN="\033[1;32m"
+fi
+
 die () {
-  echo "tatch.sh: error: $*" 1>&2
+  echo "${BOLD}[tatch.sh] ${RED}error: ${NORMAL}$*" 1>&2
   exit 1
 }
 
 msg () {
-  echo "tatch.sh: $*"
+  echo "${BOLD}tatch.sh: ${NORMAL}$*"
 }
 
 [ -f satch ] || \
@@ -72,21 +82,21 @@ run () {
         output="`$drattrim $cnf $proof 2>/dev/null|grep 's VERIFIED$'`"
 	if [ "$output" ]
 	then 
-	  echo " proof OK"
+	  echo " proof ${GREEN}OK${NORMAL}"
 	else
-	  echo " proof FAILED"
+	  echo " proof ${RED}FAILED${NORMAL}"
 	  echo "$drattrim $cnf $proof"
 	  exit 1
 	fi
       else
-	echo " OK but '$proof' missing"
+	echo " ${GREEN}OK${NORMAL} but ${RED}'$proof' missing${NORMAL}"
 	exit 1
       fi
     else
-      echo " OK"
+      echo " ${GREEN}OK${NORMAL}"
     fi
   else
-    echo " status '$status' FAILED"
+    echo " status '$status' ${RED}FAILED${NORMAL}"
     exit 1
   fi
 }
@@ -186,11 +196,11 @@ compiler="`grep ^COMPILE makefile|sed 's,^COMPILE=,,'`"
 
 compile="$compiler -c testapi.c"
 echo $compile
-$compile || exit 1
+$compile || die "compilation failed"
 
 compile="$compiler -o testapi testapi.o -L. -lsatch -lm"
 echo $compile
-$compile || exit 1
+$compile || die "linking failed"
 
 run 0 ./testapi
 
@@ -199,6 +209,7 @@ msg "compiling 'testapi.c' directly without linking against library"
 compiler="`echo "$compiler"|sed 's, -DNDEBUG,,'`"
 compile="$compiler -DNDEBUG -o testapi testapi.c satch.c -lm"
 echo $compile
-$compile || exit 1
+$compile || die "compilation failed"
 run 0 ./testapi
 
+msg "all tests ${BOLD}succeeded${NORMAL}."
