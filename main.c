@@ -59,7 +59,9 @@ static const char *usage =
 
 /*------------------------------------------------------------------------*/
 
+#include "colors.h"
 #include "satch.h"
+#include "stack.h"
 
 /*------------------------------------------------------------------------*/
 
@@ -149,6 +151,9 @@ static size_t size_buffer;
 static void error (const char *fmt, ...)
   __attribute__((format (printf, 1, 2)));
 
+static void fatal_error (const char *fmt, ...)
+  __attribute__((format (printf, 1, 2)));
+
 static void parse_error (const char *fmt, ...)
   __attribute__((format (printf, 1, 2)));
 
@@ -158,8 +163,22 @@ static void message (const char *fmt, ...)
 static void
 error (const char *fmt, ...)
 {
+  COLORS (2);
   va_list ap;
-  fputs ("satch: error: ", stderr);
+  fprintf (stderr, "%ssatch: %serror: %s", BOLD, RED, NORMAL);
+  va_start (ap, fmt);
+  vfprintf (stderr, fmt, ap);
+  va_end (ap);
+  fputc ('\n', stderr);
+  exit (1);
+}
+
+static void
+fatal_error (const char *fmt, ...)
+{
+  COLORS (2);
+  va_list ap;
+  fprintf (stderr, "%ssatch: %sfatal error: %s", BOLD, RED, NORMAL);
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
   va_end (ap);
@@ -170,9 +189,10 @@ error (const char *fmt, ...)
 static void
 parse_error (const char *fmt, ...)
 {
+  COLORS (2);
   va_list ap;
-  fprintf (stderr, "satch: parse error at line %ld in '%s': ",
-	   lineno, input.path);
+  fprintf (stderr, "%ssatch: %sparse error at line %ld in '%s': %s",
+	   BOLD, RED, lineno, input.path, NORMAL);
   va_start (ap, fmt);
   vfprintf (stderr, fmt, ap);
   va_end (ap);
@@ -211,6 +231,221 @@ banner (void)
 
 /*------------------------------------------------------------------------*/
 
+// We also allow parsing XOR clauses if the file has an 'p xnf ...' header.
+// These XOR clauses are prefixed by an 'x', i.e., the clause 'x -1 2 0'
+// means that the variable '1' is equivalent to variable '2'. We simply
+// encode those XOR clauses back to CNF by introducing Tseitin variables.
+
+static struct int_stack xors;
+
+static void
+ternary (int a, int b, int c)
+{
+  satch_add_ternary_clause (solver, a, b, c);
+}
+
+static void
+quaternary (int a, int b, int c, int d)
+{
+  satch_add_quaternary_clause (solver, a, b, c, d);
+}
+
+static void
+direct_xor_encoding (size_t size, int * l)
+{
+#ifndef NDEBUG
+  if (logging)
+    {
+      printf ("c MAIN 0 direct encoding of size %zu XOR", size);
+      for (size_t i = 0; i < size; i++)
+	printf (" %d", l[i]);
+      fputc ('\n', stdout);
+    }
+#endif
+  if (!size)
+    satch_add_empty (solver);
+  else if (size == 1)
+    satch_add_unit (solver, l[0]);
+  else if (size == 2)
+    satch_add_binary_clause (solver, l[0], l[1]),
+    satch_add_binary_clause (solver, -l[0], -l[1]);
+  else if (size == 3)
+    ternary (-l[0], -l[1], l[2]), ternary (-l[0], l[1], -l[2]),
+    ternary (l[0], -l[1], -l[2]), ternary (l[0], l[1], l[2]);
+  else
+    {
+      assert (size == 4);
+      quaternary (-l[0], -l[1], -l[2], -l[3]);
+      quaternary (-l[0], -l[1], l[2], l[3]);
+      quaternary (-l[0], l[1], -l[2], l[3]);
+      quaternary (-l[0], l[1], l[2], -l[3]);
+      quaternary (l[0], -l[1], -l[2], l[3]);
+      quaternary (l[0], -l[1], l[2], -l[3]);
+      quaternary (l[0], l[1], -l[2], -l[3]);
+      quaternary (l[0], l[1], l[2], l[3]);
+    }
+}
+
+#if 0
+
+// Recursive less optimal encoding (uses more variables).  It also
+// introduces Tseitin variables in a DFS way in terms of the balanced
+// generated XOR tree which looks at least less elegant.
+
+static int
+encode_xor (int tseitin, size_t size, int * literals)
+{
+  if (size < 5)
+    {
+      direct_xor_encoding (size, literals);
+      return tseitin;
+    }
+  const int lit = tseitin++;
+#ifndef NDEBUG
+  if (logging)
+    {
+      printf ("c MAIN 0 encoding of size %zu XOR", size);
+      for (size_t i = 0; i < size; i++)
+	printf (" %d", literals[i]);
+      if (size >= 5)
+	printf (" using Tseitin variable %d", lit);
+      fputc ('\n', stdout);
+    }
+#endif
+  struct int_stack tmp;
+  INIT (tmp);
+  for (size_t i = 0; i < size/2; i++)
+    PUSH (tmp, literals[i]);
+  PUSH (tmp, -lit);
+  tseitin = encode_xor (tseitin, SIZE (tmp), tmp.begin);
+  CLEAR (tmp);
+  for (size_t i = size/2; i < size; i++)
+    PUSH (tmp, literals[i]);
+  PUSH (tmp, lit);
+  tseitin = encode_xor (tseitin, SIZE (tmp), tmp.begin);
+  RELEASE (tmp);
+  return tseitin;
+}
+
+#else
+
+// This gives a smallest (less variables) XOR encoding where the Tseitin
+// variables are introduced in a layered way.  The implementation is
+// currently quadratic (due to shifting the working stack down-ward by three
+// literals in every loop round). If this becomes a bottle-neck (while for
+// instance encoding XOR constraints of size 10000) one could fall back to
+// use a proper working 'queue' implementation.
+
+static int
+encode_xor (int tseitin, size_t size, int * literals)
+{
+  struct int_stack work;
+  INIT (work);
+  for (size_t i = 0; i < size; i++)
+    PUSH (work, literals[i]);
+  while (SIZE (work) > 4)
+    {
+      tseitin++;
+      int * l = work.begin;
+#ifndef NDEBUG
+      if (logging)
+	printf ("c MAIN new Tseitin variable %d = %d ^ %d ^ %d\n",
+		tseitin, l[0], l[1], l[2]);
+#endif
+      int t[4] = { l[0], l[1], l[2], -tseitin };
+      direct_xor_encoding (4, t);
+      for (int * p = l + 3; p != work.end; p++)
+	p[-3] = p[0];
+      work.end -= 3;
+      *work.end++ = tseitin;
+    }
+  direct_xor_encoding (SIZE (work), work.begin);
+  RELEASE (work);
+  return tseitin;
+}
+
+#endif
+
+// In forced parsing mode we do not know the number of actual variables
+// while parsing an XOR clause and since we need to introduce Tseitin
+// variables to encode an XOR we need to wait until we have determined the
+// maximum variable index occurring in the file before encoding the formula.
+
+// As a side-effect of postponing the encoding of XOR clauses in forced
+// parsing mode the Tseitin variables will be activated in a different
+// order, which will change the (initial) order how these variables are
+// picked as decisions (in forced mode they will always be picked first).
+
+static void
+encode_xors (int tseitin, size_t start)
+{
+  int * x = xors.begin + start;
+  const int * const end = xors.end;
+  for (int * y = x; x != end; x = y + 1)
+    {
+      for (y = x; assert (y != end), *y; y++)
+	;
+      tseitin = encode_xor (tseitin, (size_t)(y - x), x);
+    }
+}
+
+#ifndef NDEBUG
+
+static void
+check_xors_satisfied (void)
+{
+  if (EMPTY (xors))
+    return;
+
+  const int * x = xors.begin;
+  const int * const end = xors.end;
+  size_t checked = 0;
+
+  for (const int * y = x; x != end; x = y + 1)
+    {
+      checked++;
+
+      bool satisfied = false;
+      int partial = 0;
+
+      int lit;
+      for (y = x; assert (y != end), (lit = *y); y++)
+	{
+	  int tmp = satch_val (solver, lit);
+	  if (!tmp)
+	    partial = lit;
+	  else if (tmp  == lit)
+	    satisfied = !satisfied;
+	  else
+	    assert (tmp == -lit);
+	}
+
+      if (!partial && satisfied)
+	continue;
+
+      COLORS (2);
+      fflush (stdout);
+      fprintf (stderr, "%slibsatch: %sfatal error: %s", BOLD, RED, NORMAL);
+      if (partial)
+	fprintf (stderr, "partial assignment of %d in", partial);
+      else
+	fputs ("unsatisfied", stderr);
+      fprintf (stderr, " size %zu XOR:\n", (size_t)(y - x));
+      for (const int *z = x; (lit = *z); z++)
+	fprintf (stderr, "%d ", lit);
+      fputs ("0\n", stderr);
+      fflush (stderr);
+      abort ();
+    }
+
+  if (logging)
+    printf ("c MAIN 0 checked all %zu XORs to be satisfied\n", checked);
+}
+
+#endif
+
+/*------------------------------------------------------------------------*/
+
 // This parser for DIMACS files is meant to be pretty robust and precise.
 // For instance it carefully checks that the number of variables as well as
 // literals are valid 32-two bit integers (different from 'INT_MIN'). For
@@ -237,6 +472,12 @@ next (void)
   if (res != EOF)
     bytes++;
   return res;
+}
+
+static inline double
+percent (double a, double b)
+{
+  return b ? 100 * a / b : 0;
 }
 
 // This is the actual DIMACS file parser.  It uses the 'next' function to
@@ -270,18 +511,19 @@ parse (void)
     parse_error ("expected 'p' or 'c'");
   if (next () != ' ')
     parse_error ("expected space after 'p'");
-  if (next () != 'c')
-    parse_error ("expected 'c' after 'p '");
+  char format = next ();
+  if (format != 'c' && format != 'x')
+    parse_error ("expected 'c' or 'x' after 'p '");
   if (next () != 'n')
     parse_error ("expected 'n' after 'p c'");
   if (next () != 'f')
     parse_error ("expected 'f' after 'p cn'");
   if (next () != ' ')
-    parse_error ("expected space after 'p cnf'");
+    parse_error ("expected space after 'p %cnf'", format);
   while ((ch = next ()) == ' ' || ch == '\t')
     ;
   if (!isdigit (ch))
-    parse_error ("expected digit after 'p cnf '");
+    parse_error ("expected digit after 'p %cnf '", format);
   variables = ch - '0';
   while (isdigit (ch = next ()))
     {
@@ -297,11 +539,11 @@ parse (void)
       variables += digit;
     }
   if (ch != ' ')
-    parse_error ("expected space after 'p cnf %d'", variables);
+    parse_error ("expected space after 'p %cnf %d'", format, variables);
   while ((ch = next ()) == ' ' || ch == '\t')
     ;
   if (!isdigit (ch))
-    parse_error ("expected digit after 'p cnf %d '", variables);
+    parse_error ("expected digit after 'p %cnf %d '", format, variables);
   size_t specified_clauses = ch - '0';
   while (isdigit (ch = next ()))
     {
@@ -323,32 +565,63 @@ parse (void)
 	;
     }
   if (ch != '\n')
-    parse_error ("expected new line after 'p cnf %d %zu'", variables,
-		 specified_clauses);
+    parse_error ("expected new line after 'p %cnf %d %zu'", format,
+                 variables, specified_clauses);
 
-  message ("parsed 'p cnf %d %zu' header", variables, specified_clauses);
+  message ("parsed 'p %cnf %d %zu' header",
+           format, variables, specified_clauses);
   satch_reserve (solver, variables);
 
+  int parsed_variables = 0;	// Maximum parsed variable index.
   size_t parsed_clauses = 0;
-  int parsed_variables = 0;
+  size_t parsed_xors = 0;
 
+  size_t offset_of_encoded_xors = 0;
+
+  int tseitin = force ? 0 : variables;
+  char type = 0;
   int lit = 0;
 
   for (;;)
     {
       ch = next ();
+
+      // Skip white space.
+
       if (ch == ' ' || ch == '\t' || ch == '\n')
 	continue;
+
       if (ch == EOF)
 	break;
+
+      // Read and skip comments.
+
       if (ch == 'c')
 	{
-	COMMENT:
+
+	COMMENT:	// See below on why we need 'goto' here.
+
 	  while ((ch = next ()) != '\n')
 	    if (ch == EOF)
 	      parse_error ("unexpected end-of-file in comment");
 	  continue;
 	}
+
+      // Read XOR type.
+
+      if (ch == 'x')
+	{
+	  if (lit)
+	    parse_error ("'x' after non-zero %d'", lit);
+	  if (type)
+	    parse_error ("'x' after '%c'", type);
+	  if (!force && format != 'x')
+	    parse_error ("unexpected 'x' in CNF (use 'p xnf ...' header)");
+	  type = 'x';
+	  continue;
+	}
+
+      // Get sign of next literal and its first digit.
 
       int sign = 1;
 
@@ -357,10 +630,14 @@ parse (void)
 	  ch = next ();
 	  if (!isdigit (ch))
 	    parse_error ("expected digit after '-'");
+	  if (ch == '0')
+	    parse_error ("expected non-zero digit after '-'");
 	  sign = -1;
 	}
       else if (!isdigit (ch))
 	parse_error ("expected number");
+
+      // In forced parsing mode we ignore specified clauses.
 
       if (!force)
 	{
@@ -368,6 +645,8 @@ parse (void)
 	  if (parsed_clauses == specified_clauses)
 	    parse_error ("more clauses than specified");
 	}
+
+      // Read the variable index and make sure not to overflow.
 
       int idx = ch - '0';
       while (isdigit (ch = next ()))
@@ -383,7 +662,11 @@ parse (void)
 	  idx += digit;
 	}
 
+      // Now we have the variable with its sign as parsed literal.
+
       lit = sign * idx;
+
+      // Be careful to check the character after the last digit.
 
       if (ch != ' ' && ch != '\t' && ch != '\n' && ch != 'c')
 	parse_error ("unexpected character after '%d'", lit);
@@ -399,23 +682,78 @@ parse (void)
       if (!lit)
 	parsed_clauses++;
 
-      // The IPASIR semantics of 'satch_add' in essence just gets the
-      // numbers in the DIMACS file after the header and 'adds' them
-      // including the zeroes terminating each clause.  Thus we do not have
-      // to use another function for adding a clause explicitly.
-      //
-      satch_add (solver, lit);
+      if (!type)
+	{
+	  // The IPASIR semantics of 'satch_add' in essence just gets the
+	  // numbers in the DIMACS file after the header and 'adds' them
+	  // including the zeroes terminating each clause.  Thus we do not
+	  // have to use another function for adding a clause explicitly.
+
+	  satch_add (solver, lit);
+	}
+      else if (lit)
+	{
+	  assert (type == 'x');
+	  PUSH (xors, lit);
+	}
+      else
+	{
+	  assert (type == 'x');
+	  type = 0;
+
+	  // As described above (before 'encode_xors'), in forced parsing
+	  // mode we need to wait until we know the maximum variable in the
+	  // file before we can start encoding XORs.  In precise parsing
+	  // mode we can simply encode the XOR directly (which also is
+	  // beneficial to activate and place Tseitin variables close to the
+	  // other variables seen so far and thus in this XOR clause).
+
+	  const size_t new_offset = SIZE (xors);
+	  const size_t size = new_offset - offset_of_encoded_xors;
+	  int * x = xors.begin + offset_of_encoded_xors;
+
+	  if (force)
+	    {
+#ifndef NDEBUG
+	      if (logging)
+		{
+		  printf ("c MAIN 0 parsed size %zu XOR", size);
+		  for (const int * p = x; x != xors.end; x++)
+		    printf (" %d", *p);
+		  fputc ('\n', stdout);
+		}
+#endif
+	      PUSH (xors, 0);
+	    }
+	  else
+	    {
+	      tseitin = encode_xor (tseitin, size, x);
+#ifndef NDEBUG
+	      PUSH (xors, 0);
+	      offset_of_encoded_xors = new_offset + 1;
+	      assert (offset_of_encoded_xors == SIZE (xors));
+#else
+	      CLEAR (xors);
+	      assert (!offset_of_encoded_xors);
+#endif
+	    }
+
+	  parsed_xors++;
+	}
 
       // The following 'goto' is necessary to avoid reading another
       // character which would result in a spurious parse error for a comment
       // immediately starting after a literal, e.g., as in '1comment'.
-      //
+
       if (ch == 'c')
 	goto COMMENT;
     }
 
   if (lit)
     parse_error ("terminating zero after literal '%d' missing", lit);
+
+  if (type)
+    assert (format == 'x'), parse_error ("literals missing after 'x'");
 
   if (!force && parsed_clauses < specified_clauses)
     {
@@ -426,12 +764,26 @@ parse (void)
 		     specified_clauses - parsed_clauses);
     }
 
+  // Handle delayed XOR encoding in forced parsing mode.
+
+  if (!EMPTY (xors))
+    encode_xors (parsed_variables, offset_of_encoded_xors);
+
   const double seconds = satch_stop_profiling_parsing (solver);
 
   if (parsed_clauses == 1)
     message ("parsed exactly one clause in %.2f seconds", seconds);
   else
     message ("parsed %zu clauses in %.2f seconds", parsed_clauses, seconds);
+
+  if (parsed_xors == 1)
+    message ("including exactly one XOR clause %.0f%%",
+             percent (1, parsed_clauses));
+  else if (parsed_xors > 1)
+    message ("including %zu XOR clauses %.0f%%",
+             parsed_xors, percent (parsed_xors, parsed_clauses));
+  else if (format == 'x')
+    assert (!parsed_xors), message ("without any XOR clauses");
 
   if (parsed_variables == 0)
     message ("input file does not contain any variable");
@@ -452,6 +804,10 @@ parse (void)
   message ("closed '%s'", input.path);
   message ("after reading %" PRIu64 " bytes (%.0f MB)",
 	   bytes, bytes / (double) (1 << 20));
+
+#ifdef NDEBUG
+  RELEASE (xors);
+#endif
 }
 
 /*------------------------------------------------------------------------*/
@@ -593,10 +949,21 @@ catch_signal (int sig)
 #undef SIGNAL
     if (!quiet)
     {
-      printf ("c\nc caught signal %d ('%s')\n", sig, name);
+      COLORS (1);
+      fputs ("c\nc ", stdout);
+      COLOR (RED);
+      COLOR (BOLD);
+      printf ("caught signal %d (%s)", sig, name);
+      COLOR (NORMAL);
+      fputc ('\n', stdout);
       fflush (stdout);
       satch_statistics (solver);
-      printf ("c\nc raising signal %d ('%s')\nc\n", sig, name);
+      fputs ("c\nc ", stdout);
+      COLOR (RED);
+      COLOR (BOLD);
+      printf ("raising signal %d (%s)", sig, name);
+      COLOR (NORMAL);
+      fputc ('\n', stdout);
       fflush (stdout);
     }
   reset_signal_handler ();
@@ -832,6 +1199,9 @@ main (int argc, char **argv)
     satch_section (solver, "result");
   if (res == SATISFIABLE)
     {
+#ifndef NDEBUG
+      check_xors_satisfied ();
+#endif
       printf ("s SATISFIABLE\n");
       if (!no_witness)
 	{
@@ -861,6 +1231,9 @@ main (int argc, char **argv)
   if (!quiet)
     satch_section (solver, "shutting down");
   satch_release (solver);
+#ifndef NDEBUG
+  RELEASE (xors);
+#endif
   message ("exit %d", res);
 
   return res;

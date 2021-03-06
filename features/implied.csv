@@ -11,6 +11,7 @@
 --no-rephase,--no-best
 --no-rephase,--no-inverted
 --no-save,--no-rephase
+--no-sort,--no-rsort
 --no-stable,--no-target
 --no-target,--no-best
 --no-tier1,--no-tier2

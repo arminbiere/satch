@@ -4,6 +4,7 @@
 
 [ $block = no -a $virtual = no ] && die "'--no-block' implies '--no-virtual'"
 [ $bump = no -a $reasons = no ] && die "'--no-bump' implies '--no-reasons'"
+[ $bump = no -a $rsort = no ] && die "'--no-bump' implies '--no-rsort'"
 [ $bump = no -a $sort = no ] && die "'--no-bump' implies '--no-sort'"
 [ $bump = no -a $vmtf = no ] && die "'--no-bump' implies '--no-vmtf'"
 [ $bump = no -a $vsids = no ] && die "'--no-bump' implies '--no-vsids'"
@@ -25,11 +26,13 @@
 [ $save = no -a $best = no ] && die "'--no-save' implies '--no-best'"
 [ $save = no -a $inverted = no ] && die "'--no-save' implies '--no-inverted'"
 [ $save = no -a $rephase = no ] && die "'--no-save' implies '--no-rephase'"
+[ $sort = no -a $rsort = no ] && die "'--no-sort' implies '--no-rsort'"
 [ $stable = no -a $best = no ] && die "'--no-stable' implies '--no-best'"
 [ $stable = no -a $target = no ] && die "'--no-stable' implies '--no-target'"
 [ $target = no -a $best = no ] && die "'--no-target' implies '--no-best'"
 [ $tier1 = no -a $tier2 = no ] && die "'--no-tier1' implies '--no-tier2'"
 [ $used = no -a $tier2 = no ] && die "'--no-used' implies '--no-tier2'"
+[ $vmtf = no -a $rsort = no ] && die "'--no-vmtf' implies '--no-rsort'"
 [ $vmtf = no -a $sort = no ] && die "'--no-vmtf' implies '--no-sort'"
 
 # Check clashing disabled features.

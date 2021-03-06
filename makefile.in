@@ -1,29 +1,47 @@
 COMPILE=@COMPILE@
+
 .c.o:
 	$(COMPILE) -c $<
-all: libsatch.a satch gencombi
-indent:
-	indent *.[ch]
-test: all
-	./tatch.sh
-pairwise: gencombi
-	./gencombi -a -i 2 | ./checkconfig.sh -i
-	./gencombi | ./checkconfig.sh
-clean:
-	rm -f libsatch.* satch gencombi testapi *.o makefile config.c
-	rm -f *~ *.gcda *.gcno *.gcov gmon.out cnfs/*.proof
-config.c: main.c satch.c satch.h VERSION mkconfig.sh makefile
+
+all: libsatch.a satch
+
+config.c: main.c satch.c *.h features/*.h VERSION mkconfig.sh makefile
 	./mkconfig.sh > $@
-catch.o: catch.c catch.h stack.h makefile
-config.o: config.c satch.h makefile
-satch.o: satch.c satch.h features.h makefile
-satch.o: features/check.h features/init.h
-gencombi.o: gencombi.c satch.h makefile
-main.o: main.c satch.h makefile
+
+catch.o: catch.c *.h makefile
+config.o: config.c makefile
+satch.o: satch.c *.h features/*.h makefile
+gencombi.o: gencombi.c *.h makefile
+main.o: main.c *.h makefile
+
 libsatch.a: catch.o config.o satch.o makefile
 	ar rc $@ catch.o config.o satch.o
+
 gencombi: gencombi.o libsatch.a makefile
 	$(COMPILE) -o $@ gencombi.o -L. -lsatch -lm
 satch: main.o libsatch.a makefile
 	$(COMPILE) -o $@ main.o -L. -lsatch -lm
-.PHONY: all clean indent test pairwise
+
+indent:
+	indent *.[ch]
+
+test: all
+	./tatch.sh
+
+test-all-options: gencombi
+	./gencombi -a 1 | ./checkconfig.sh
+test-all-pairs: gencombi
+	./gencombi -a -i 2 | ./checkconfig.sh -i
+	./gencombi -a 2 | ./checkconfig.sh
+test-all-triples: gencombi
+	./gencombi -a -i 3 | ./checkconfig.sh -i
+	./gencombi -a 3 | ./checkconfig.sh
+test-two-ways: gencombi
+	./gencombi -a -i 2 | ./checkconfig.sh -i
+	./gencombi | ./checkconfig.sh
+
+clean:
+	rm -f libsatch.* satch gencombi testapi *.o makefile config.c
+	rm -f *~ *.gcda *.gcno *.gcov gmon.out cnfs/*.proof
+
+.PHONY: all clean indent test test-all-options test-all-pairs test-all-triples test-two-ways

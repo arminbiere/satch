@@ -17,6 +17,9 @@
 #ifdef NCACHE
 "-cache"
 #endif
+#ifdef NCOLOR
+"-color"
+#endif
 #ifdef NFOCUSED
 "-focused"
 #endif
@@ -43,6 +46,9 @@
 #endif
 #ifdef NRESTART
 "-restart"
+#endif
+#ifdef NRSORT
+"-rsort"
 #endif
 #ifdef NSAVE
 "-save"

@@ -140,6 +140,10 @@ struct int_stack		// Generic stack with 'int' elements.
   TYPE * E, ** PTR_ ## E = (S).begin, ** const END_ ## E = (S).end; \
   (PTR_ ## E != END_ ## E) && (E = *PTR_ ## E, true); ++PTR_ ## E
 
+#define all_pointers_on_stack_in_reverse(TYPE,E,S) \
+  TYPE * E, ** PTR_ ## E = (S).end, ** const BEGIN_ ## E = (S).begin; \
+  (PTR_ ## E-- != BEGIN_ ## E) && (E = *PTR_ ## E, true);
+
 /*------------------------------------------------------------------------*/
 
 #endif

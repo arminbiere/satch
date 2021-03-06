@@ -10,6 +10,7 @@ parse () {
     x"--no-block") block=no;;
     x"--no-bump") bump=no;;
     x"--no-cache") cache=no;;
+    x"--no-color") color=no;;
     x"--no-focused") focused=no;;
     x"--no-glue") glue=no;;
     x"--no-inverted") inverted=no;;
@@ -19,6 +20,7 @@ parse () {
     x"--no-reduce") reduce=no;;
     x"--no-rephase") rephase=no;;
     x"--no-restart") restart=no;;
+    x"--no-rsort") rsort=no;;
     x"--no-save") save=no;;
     x"--no-sort") sort=no;;
     x"--no-stable") stable=no;;

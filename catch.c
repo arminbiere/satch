@@ -20,6 +20,7 @@
 /*------------------------------------------------------------------------*/
 
 #include "catch.h"
+#include "colors.h"
 #include "stack.h"
 
 /*------------------------------------------------------------------------*/
@@ -100,7 +101,8 @@ static void checker_fatal_error (const char *, ...)
 static void
 checker_fatal_error (const char *msg, ...)
 {
-  fputs ("checker: fatal error: ", stderr);
+  COLORS (2);
+  fprintf (stderr, "%schecker: %sfatal error: %s", BOLD, RED, NORMAL);
   va_list ap;
   va_start (ap, msg);
   vfprintf (stderr, msg, ap);
@@ -783,8 +785,10 @@ checker_release_all_clauses (struct checker *checker)
 static void
 checker_invalid_usage (const char *message, const char *function)
 {
-  fprintf (stderr,
-	   "checker: invalid API usage in '%s': %s\n", function, message);
+  COLORS (2);
+  fprintf (stderr, "%schecker: %sfatal error: "
+           "%sinvalid API usage in '%s': %s\n", 
+           BOLD, RED, NORMAL, function, message);
   fflush (stderr);
   abort ();
 }

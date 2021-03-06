@@ -8,6 +8,9 @@
 #if defined(NBUMP) && !defined(NREASONS)
 #define NREASONS
 #endif
+#if defined(NBUMP) && !defined(NRSORT)
+#define NRSORT
+#endif
 #if defined(NBUMP) && !defined(NSORT)
 #define NSORT
 #endif
@@ -71,6 +74,9 @@
 #if defined(NSAVE) && !defined(NREPHASE)
 #define NREPHASE
 #endif
+#if defined(NSORT) && !defined(NRSORT)
+#define NRSORT
+#endif
 #if defined(NSTABLE) && !defined(NBEST)
 #define NBEST
 #endif
@@ -85,6 +91,9 @@
 #endif
 #if defined(NUSED) && !defined(NTIER2)
 #define NTIER2
+#endif
+#if defined(NVMTF) && !defined(NRSORT)
+#define NRSORT
 #endif
 #if defined(NVMTF) && !defined(NSORT)
 #define NSORT

@@ -8,24 +8,26 @@ cat<<EOF
 --no-block        disable blocking literals (thus slower propagation)
 --no-bump         disable variable bumping (during conflict analysis)
 --no-cache        disable caching searched replacements in clauses
---no-focused      disable focused mode and always use stable mode instead
---no-glue         disable glue based clause reduction completely (use size only)
+--no-color        disable colored outputs for terminals
+--no-focused      disable focused mode and always use stable mode
+--no-glue         disable glue based clause reduction (use size only)
 --no-inverted     disable inverted target rephasing (in stable mode)
 --no-learn        disable clause learning (do not add learned clauses)
---no-minimize     disable clause minimization (of learned 1st UIP clause)
+--no-minimize     disable clause minimization (of 1st UIP clause)
 --no-reasons      disable bumping of reason side literals
 --no-reduce       disable clause reduction (keep learned clauses forever)
 --no-rephase      disable rephasing / resetting of saved phases
 --no-restart      disable restarting (otherwise moving average based)
+--no-rsort        disable radix-sorting of literals and clauses
 --no-save         disable phase saving (instead use default decision phase)
 --no-sort         disable sorting of bumped literals in focused mode
---no-stable       disable stable mode and always use focused mode instead
+--no-stable       disable stable mode and always use focused mode
 --no-target       disable target phases (phase selection in stable mode)
 --no-tier1        disable keeping tier 1 clauses for ever (glue 2 and less)
---no-tier2        disable delaying reduction of tier 2 clauses (glue 6 and less)
---no-true         disable default 'true' decision phase (use 'false' instead) 
+--no-tier2        disable delaying reduction of tier 2 clauses (glue <= 6)
+--no-true         disable default 'true' decision phase (use 'false')
 --no-used         disable keeping used clauses (above tier 1 glue limit)
---no-variadic     disable embedding literals as variadic array into clauses
+--no-variadic     disable literals embedding as in clauses
 --no-virtual      disable virtual binary clauses (slower + more space)
 --no-vmtf         disable VMTF and always use VSIDS instead
 --no-vsids        disable VSIDS and always use VMTF instead

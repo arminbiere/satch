@@ -1,9 +1,20 @@
+Release 0.4.7
+-------------
+
+- Almost complete colored solver messages (in 'report' etc.).
+- Support for reading and encoding XNF (CNF with OR and XOR clauses).
+- New makefile goals: test-two-ways, test-all-pairs, test-all-triples.
+- Binary search in two-way combinatorial tester 'gencombi'.
+- Code clean-up: sorted statistics fields, moved some internal code up.
+- Using stable radix sort in 'reduce' allowed to remove clause ids.
+- Radix sorting (to speed-up sorting of 'analyzed' stack).
+
 Release 0.4.2
 -------------
 
-- saving phases fixed (pointer increase by two - thanks to Mathias Fleury)
-- using assigned variables instead of trail height for target/best phases
-- scripts have now colors (thanks to Daniel Le Berre)
+- Saving phases fixed (pointer increase by two - thanks to Mathias Fleury).
+- Using assigned variables instead of trail height for target/best phases.
+- Scripts have now colors (thanks to Daniel Le Berre).
 
 Release 0.4.0
 -------------

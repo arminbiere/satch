@@ -85,6 +85,7 @@ static const char *abbrevs[] = {
 
 #include <assert.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -411,8 +412,10 @@ ternary (struct satch *solver, int a, int b, int c)
 
 struct frame
 {
-  int released;
+  bool encoded;
+  bool released;
   int limit;			// Conflict limit.
+  int conflicts;		// Previous conflicts.
   int status;			// Result status.
   int ***pair;			// DIMACS variable index table for pairs.
   int **option;			// DIMACS variable index for options.
@@ -420,27 +423,17 @@ struct frame
   struct satch *solver;		// The actual solver.
 };
 
-static struct satch *
+static void
 init_frame (struct frame *frame, int k)
 {
-  frame->released = 0;
-
   frame->pair = allocate ((k + 1) * sizeof *frame->pair);
   frame->option = allocate ((k + 1) * sizeof *frame->option);
 
   if (!unsorted)
     frame->sorted = allocate ((k + 1) * sizeof *frame->sorted);
 
-  if (dimacs)
-    frame->solver = 0;
-  else
-    {
-      frame->status = 0;
-      frame->limit = 0;
-      frame->solver = satch_init ();
-    }
-
-  return frame->solver;
+  if (!dimacs)
+    frame->solver = satch_init ();
 }
 
 static void
@@ -449,7 +442,10 @@ release_frame (struct frame *frame, int k)
   if (frame->released)
     return;
 
-  frame->released = 1;
+  frame->released = true;
+
+  if (!frame->encoded)
+    return;
 
   int **option = frame->option;
   for (int i = 0; i < k; i++)
@@ -477,21 +473,31 @@ release_frame (struct frame *frame, int k)
     return;
 
   satch_release (frame->solver);
-  msg ("frame[%d] released with status %d", k, frame->status);
+  msg ("frame[%d] released with status %d conflicts %d",
+        k, frame->status, frame->conflicts);
 }
 
 static struct frame *frames;
 static int nframes;
 
-static struct frame *
+static void
 new_frame (int k)
 {
-  assert (!nframes || nframes == k);
-  nframes = k + 1;
-  const size_t bytes = nframes * sizeof *frames;
+  assert (nframes <= k);
+  const size_t bytes = (k + 1) * sizeof *frames;
   frames = realloc (frames, bytes);
   if (!frames)
     out_of_memory (bytes);
+  memset (frames + nframes, 0, (k + 1 - nframes) * sizeof *frames);
+  nframes = k + 1;
+}
+
+static struct frame *
+get_frame (int k)
+{
+  assert (2 <= k);
+  if (nframes <= k)
+    new_frame (k);
   return frames + k;
 }
 
@@ -506,11 +512,23 @@ release_frames (void)
   free (frames);
 }
 
+static bool
+encoded (int k)
+{
+  return k < nframes && frames[k].encoded;
+}
+
 static void
 encode (int k)			// Thus 'encode' sees only local 'k'!
 {
-  struct frame *frame = new_frame (k);
-  struct satch *solver = init_frame (frame, k);
+  assert (!encoded (k));
+
+  struct frame *frame = get_frame (k);
+  init_frame (frame, k);
+  frame->encoded = true;
+
+  struct satch *solver = frame->solver;
+  assert (dimacs || solver);
 
   int nvars = 0;
   int nclauses = 0;
@@ -690,67 +708,89 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	      literal (solver, -pair[i][p][q]);
 	    literal (solver, 0);
 	  }
+
+  assert (encoded (k));
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
+print_solution (int k)
+{
+  struct frame * frame = get_frame (k);
+  assert (frame->encoded);
+  assert (!frame->released);
+  assert (frame->status == SATISFIABLE);
+  struct satch *solver = frame->solver;
+  assert (solver);
+  for (int i = 0; i < k; i++)
+    {
+      fputs ("./configure", stdout);
+      for (int p = 0; p < noptions; p++)
+	{
+	  int lit = frame->option[i][p];
+	  int value = satch_val (solver, lit);
+	  if (value != lit)
+	    continue;
+	  fputc (' ', stdout);
+	  fputs (shorten (options[p]), stdout);
+	}
+      fputc ('\n', stdout);
+    }
 }
 
 /*------------------------------------------------------------------------*/
 
 // Solve under the current limits the formulas of all remaining solvers.
 
+static const int initial_conflict_limit = 100;
+static const int expected_margin = 10;
+
 static int
-solve_frame (int k)
+solve (int k)
 {
-  assert (2 <= k);
-  struct frame *frame = frames + k;
-  if (frame->status == 20)
-    return 0;
-  assert (!frame->status);
+  struct frame * frame = get_frame (k);
+  if (frame->status)
+    return frame->status;
+  if (!frame->encoded)
+    encode (k);
   struct satch *solver = frame->solver;
+  assert (solver);
   if (!frame->limit)
-    frame->limit = 100;
-  else if (frame->limit < 1000)
-    frame->limit = 1000;
+    frame->limit = initial_conflict_limit;
   else
-    frame->limit += 100;
+    frame->limit *= 2;
   const double start = satch_process_time ();
   msg ("frame[%d] solving with limit %d after %.2f seconds",
        k, frame->limit, start);
-  frame->status = satch_solve (solver, frame->limit);
+  int res = frame->status = satch_solve (solver, frame->limit);
+  const int conflicts = satch_conflicts (solver);
+  const int delta = conflicts - frame->conflicts;
+  frame->conflicts = conflicts;
   const double end = satch_process_time ();
   const double seconds = end - start;
-  msg ("frame[%d] solved with status %d in %.2f seconds",
-       k, frame->status, seconds);
-  if (frame->status == 10)
-    {
-      for (int i = 0; i < k; i++)
-	{
-	  fputs ("./configure", stdout);
-	  for (int p = 0; p < noptions; p++)
-	    {
-	      int lit = frame->option[i][p];
-	      int value = satch_val (solver, lit);
-	      if (value != lit)
-		continue;
-	      fputc (' ', stdout);
-	      fputs (shorten (options[p]), stdout);
-	    }
-	  fputc ('\n', stdout);
-	}
-      return 1;
-    }
-  else if (frame->status == 20)
+  msg ("frame[%d] solved with status %d in %.2f seconds and %d conflicts",
+       k, frame->status, seconds, delta);
+  return res;
+  if (res == UNSATISFIABLE)
     release_frame (frame, k);
-  else
-    assert (!frame->status);
-  return 0;
+  return res;
 }
 
-static int
-solve (void)
+static void
+update_limits (int ub)
 {
-  for (int k = 2; k < nframes; k++)
-    if (solve_frame (k))
-      return 1;
-  return 0;
+  int limit = expected_margin * frames[ub].conflicts;
+  msg ("updating limits to %d conflicts in total", limit);
+  for (int k = 2; k < ub; k++)
+    {
+      struct frame * frame = frames + k;
+      int conflicts = frame->conflicts;
+      if (conflicts > limit)
+	frame->limit = initial_conflict_limit/2;
+      else
+	frame->limit = (limit - conflicts)/2;
+    }
 }
 
 /*------------------------------------------------------------------------*/
@@ -836,10 +876,54 @@ main (int argc, char **argv)
     encode (k);
   else
     {
-      int i = 2;
-      do
-	encode (i++);
-      while (!solve ());
+      // In the first step search for an upper bound geometrically.
+
+      int ub = 2;
+      while (solve (ub) != SATISFIABLE)
+	{
+	  // But re-run previous encoded frames with some effort.
+
+	  int k;
+	  for (k = 2; k < ub; k++)
+	    if (encoded (k) && solve (k) == SATISFIABLE)
+	      break;
+
+	  if (k < ub)
+	    {
+	      ub = k;
+	      break;
+	    }
+
+	  ub *= 2;
+	}
+
+      msg ("initial upper bound %d", ub);
+
+      // After we have an upper bound search for a reasonable lower bound
+      // with binary search, where reasonable means that it uses more
+      // conflicts.
+
+      update_limits (ub);
+
+      int lb = 2;
+      while (lb + 1 < ub)
+	{
+	  int m = lb + (ub - lb) / 2;
+	  assert (lb < m);
+	  assert (m < ub);
+	  int res = solve (m);
+	  if (res == SATISFIABLE)
+	    {
+	      ub = m;
+	      update_limits (ub);
+	    }
+	  else
+	    lb = m;
+	}
+
+      msg ("lower bound %d", lb);
+
+      print_solution (ub);
     }
 
   reset_valid ();

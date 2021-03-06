@@ -17,6 +17,9 @@
 #ifdef NCACHE
 #pragma message "#define NCACHE"
 #endif
+#ifdef NCOLOR
+#pragma message "#define NCOLOR"
+#endif
 #ifdef NFOCUSED
 #pragma message "#define NFOCUSED"
 #endif
@@ -43,6 +46,9 @@
 #endif
 #ifdef NRESTART
 #pragma message "#define NRESTART"
+#endif
+#ifdef NRSORT
+#pragma message "#define NRSORT"
 #endif
 #ifdef NSAVE
 #pragma message "#define NSAVE"

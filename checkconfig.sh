@@ -17,8 +17,15 @@ EOF
   exit 0
 }
 
+if [ -t 1 ]
+then
+  BOLD="\033[1m"
+  NORMAL="\033[0m"
+  RED="\033[1;31m"
+fi
+
 die () {
-  echo "checkconfig.sh: error: $*" 1>&2
+  echo "${BOLD}checkconfig.sh: ${RED}error: ${NORMAL}$*" 1>&2
   exit 1
 }
 

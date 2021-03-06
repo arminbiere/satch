@@ -59,6 +59,16 @@ int satch_val (struct satch *, int literal);
 
 /*------------------------------------------------------------------------*/
 
+// Short hands for adding clauses.
+
+void satch_add_empty (struct satch *);
+void satch_add_unit (struct satch *, int );
+void satch_add_binary_clause (struct satch *, int, int);
+void satch_add_ternary_clause (struct satch *, int, int, int);
+void satch_add_quaternary_clause (struct satch *, int, int, int, int);
+
+/*------------------------------------------------------------------------*/
+
 // Additional API functions.
 
 // Allocate and activate the given number of variables.
@@ -100,6 +110,10 @@ void satch_section (struct satch *, const char *name);
 // Print profiling, statistics and resource usage.
 
 void satch_statistics (struct satch *);
+
+// Return the number of conflicts (saturated at INT_MAX).
+
+int satch_conflicts (struct satch *);
 
 /*------------------------------------------------------------------------*/
 

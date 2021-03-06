@@ -8,6 +8,9 @@
 #if defined(NBUMP) && defined(NREASONS)
 #error "'NBUMP' implies 'NREASONS' (the latter should not be defined)"
 #endif
+#if defined(NBUMP) && defined(NRSORT)
+#error "'NBUMP' implies 'NRSORT' (the latter should not be defined)"
+#endif
 #if defined(NBUMP) && defined(NSORT)
 #error "'NBUMP' implies 'NSORT' (the latter should not be defined)"
 #endif
@@ -71,6 +74,9 @@
 #if defined(NSAVE) && defined(NREPHASE)
 #error "'NSAVE' implies 'NREPHASE' (the latter should not be defined)"
 #endif
+#if defined(NSORT) && defined(NRSORT)
+#error "'NSORT' implies 'NRSORT' (the latter should not be defined)"
+#endif
 #if defined(NSTABLE) && defined(NBEST)
 #error "'NSTABLE' implies 'NBEST' (the latter should not be defined)"
 #endif
@@ -85,6 +91,9 @@
 #endif
 #if defined(NUSED) && defined(NTIER2)
 #error "'NUSED' implies 'NTIER2' (the latter should not be defined)"
+#endif
+#if defined(NVMTF) && defined(NRSORT)
+#error "'NVMTF' implies 'NRSORT' (the latter should not be defined)"
 #endif
 #if defined(NVMTF) && defined(NSORT)
 #error "'NVMTF' implies 'NSORT' (the latter should not be defined)"
