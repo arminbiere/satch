@@ -17,6 +17,7 @@
 "--no-reduce",
 "--no-rephase",
 "--no-restart",
+"--no-reuse",
 "--no-rsort",
 "--no-save",
 "--no-sort",

@@ -13,6 +13,7 @@
 --no-reduce,disable clause reduction (keep learned clauses forever)
 --no-rephase,disable rephasing / resetting of saved phases
 --no-restart,disable restarting (otherwise moving average based)
+--no-reuse,disable reusing the trail during restart
 --no-rsort,disable radix-sorting of literals and clauses
 --no-save,disable phase saving (instead use default decision phase)
 --no-sort,disable sorting of bumped literals in focused mode

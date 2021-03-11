@@ -4,6 +4,7 @@
 
 [ $block = no -a $virtual = no ] && die "'--no-block' implies '--no-virtual'"
 [ $bump = no -a $reasons = no ] && die "'--no-bump' implies '--no-reasons'"
+[ $bump = no -a $reuse = no ] && die "'--no-bump' implies '--no-reuse'"
 [ $bump = no -a $rsort = no ] && die "'--no-bump' implies '--no-rsort'"
 [ $bump = no -a $sort = no ] && die "'--no-bump' implies '--no-sort'"
 [ $bump = no -a $vmtf = no ] && die "'--no-bump' implies '--no-vmtf'"
@@ -14,6 +15,7 @@
 [ $learn = no -a $minimize = no ] && die "'--no-learn' implies '--no-minimize'"
 [ $learn = no -a $reduce = no ] && die "'--no-learn' implies '--no-reduce'"
 [ $learn = no -a $restart = no ] && die "'--no-learn' implies '--no-restart'"
+[ $learn = no -a $reuse = no ] && die "'--no-learn' implies '--no-reuse'"
 [ $learn = no -a $tier1 = no ] && die "'--no-learn' implies '--no-tier1'"
 [ $learn = no -a $tier2 = no ] && die "'--no-learn' implies '--no-tier2'"
 [ $learn = no -a $used = no ] && die "'--no-learn' implies '--no-used'"
@@ -23,6 +25,7 @@
 [ $reduce = no -a $used = no ] && die "'--no-reduce' implies '--no-used'"
 [ $rephase = no -a $best = no ] && die "'--no-rephase' implies '--no-best'"
 [ $rephase = no -a $inverted = no ] && die "'--no-rephase' implies '--no-inverted'"
+[ $restart = no -a $reuse = no ] && die "'--no-restart' implies '--no-reuse'"
 [ $save = no -a $best = no ] && die "'--no-save' implies '--no-best'"
 [ $save = no -a $inverted = no ] && die "'--no-save' implies '--no-inverted'"
 [ $save = no -a $rephase = no ] && die "'--no-save' implies '--no-rephase'"

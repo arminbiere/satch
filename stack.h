@@ -19,28 +19,28 @@
 
 // Predicates.
 
-#define EMPTY(S) ((S).end == (S).begin)
-#define FULL(S) ((S).end == (S).allocated)
+#define EMPTY_STACK(S) ((S).end == (S).begin)
+#define FULL_STACK(S) ((S).end == (S).allocated)
 
 /*------------------------------------------------------------------------*/
 
 // Computing sizes and capacity (stacks grow dynamically and need an
 // exponential increase of allocation size in order to remain linear).
 
-#define SIZE(S) ((size_t) ((S).end - (S).begin))
-#define CAPACITY(S) ((size_t) ((S).allocated - (S).begin))
+#define SIZE_STACK(S) ((size_t) ((S).end - (S).begin))
+#define CAPACITY_STACK(S) ((size_t) ((S).allocated - (S).begin))
 
 /*------------------------------------------------------------------------*/
 
 // If you want to understand the reason for this style of macros see the
 // corresponding explanations (before 'DEC' and 'INC') in 'satch.c.'
 
-#define INIT(S) \
+#define INIT_STACK(S) \
 do { \
   (S).end = (S).begin = (S).allocated = 0; \
 } while (0)
 
-#define RELEASE(S) \
+#define RELEASE_STACK(S) \
 do { \
   free ((S).begin); \
   (S).begin = (S).end = (S).allocated = 0; \
@@ -50,10 +50,10 @@ do { \
 
 // Duplicate size of stack.
 
-#define ENLARGE(S) \
+#define ENLARGE_STACK(S) \
 do { \
-  const size_t old_size = SIZE (S); \
-  const size_t old_capacity = CAPACITY (S); \
+  const size_t old_size = SIZE_STACK (S); \
+  const size_t old_capacity = CAPACITY_STACK (S); \
   const size_t new_capacity = old_capacity ? 2*old_capacity : 1; \
   const size_t new_bytes = new_capacity * sizeof *(S).begin; \
   (S).begin = realloc ((S).begin, new_bytes); \
@@ -65,8 +65,8 @@ do { \
 
 #define PUSH(S,E) \
 do { \
-  if (FULL (S)) \
-    ENLARGE (S); \
+  if (FULL_STACK (S)) \
+    ENLARGE_STACK (S); \
   *(S).end++ = (E); \
 } while (0)
 
@@ -74,7 +74,7 @@ do { \
 
 // Flush all elements.
 
-#define CLEAR(S) \
+#define CLEAR_STACK(S) \
 do { \
   (S).end = (S).begin; \
 } while (0)
@@ -84,7 +84,7 @@ do { \
 // Access element at a certain position (also works as 'lvalue').
 
 #define ACCESS(S,I) \
-  ((S).begin[assert ((size_t) (I) < SIZE(S)), (I)])
+  ((S).begin[assert ((size_t) (I) < SIZE_STACK(S)), (I)])
 
 /*------------------------------------------------------------------------*/
 
@@ -95,10 +95,10 @@ do { \
 // to understand how this is possible for a macro see 'COVER' in 'satch.c'.
 
 #define TOP(S) \
-  (assert (!EMPTY (S)), (S).end[-1])
+  (assert (!EMPTY_STACK (S)), (S).end[-1])
 
 #define POP(S) \
-  (assert (!EMPTY (S)), *--(S).end)
+  (assert (!EMPTY_STACK (S)), *--(S).end)
 
 /*------------------------------------------------------------------------*/
 
@@ -119,12 +119,12 @@ struct int_stack		// Generic stack with 'int' elements.
 // Explicitly typed iterator over non-pointer stack elements, e.g.,
 //
 //   struct int_stack stack;
-//   INIT (stack);
+//   INIT_STACK (stack);
 //   for (int i = 0; i < 10; i++)
 //     PUSH (stack, i);
 //   for (all_elements_on_stack (int, i, stack))
 //     printf ("%d\n", i);
-//   RELEASE (stack);
+//   RELEASE_STACK (stack);
 //
 // pushes the integers 0,...,9 onto a stack and then prints its elements.
 

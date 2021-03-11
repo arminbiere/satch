@@ -62,6 +62,7 @@ static const char *usage =
 #include "colors.h"
 #include "satch.h"
 #include "stack.h"
+#include "queue.h"
 
 /*------------------------------------------------------------------------*/
 
@@ -135,6 +136,12 @@ static int verbose = 1;		// Verbose level (unless 'quiet' is set).
 
 /*------------------------------------------------------------------------*/
 
+// Delayed encoding of XORs.
+
+static struct int_stack xors;
+
+/*------------------------------------------------------------------------*/
+
 // Line buffer for pretty-printing witnesses ('v' lines following the SAT
 // competition output format formatted to at most 78 characters per line).
 
@@ -159,6 +166,13 @@ static void parse_error (const char *fmt, ...)
 
 static void message (const char *fmt, ...)
   __attribute__((format (printf, 1, 2)));
+
+#ifndef NDEBUG
+
+static bool logging_prefix (const char *fmt, ...)
+  __attribute__((format (printf, 1, 2)));
+
+#endif
 
 static void
 error (const char *fmt, ...)
@@ -214,6 +228,44 @@ message (const char *fmt, ...)
   fflush (stdout);
 }
 
+#ifndef NDEBUG
+
+static bool
+logging_prefix (const char *fmt, ...)
+{
+  if (!logging)
+    return false;
+  COLORS (1);
+  COLOR (MAGENTA);
+  fputs ("c MAIN 0 ", stdout);
+  va_list ap;
+  va_start (ap, fmt);
+  vprintf (fmt, ap);
+  va_end (ap);
+  return true;
+}
+
+static void
+logging_suffix (void)
+{
+  assert (logging);
+  fputs (NORMAL_CODE, stdout);
+  fputc ('\n', stdout);
+  fflush (stdout);
+}
+
+#define LOG(...) \
+do { \
+  if (logging_prefix (__VA_ARGS__)) \
+    logging_suffix ();  \
+} while (0)
+
+#else
+
+#define LOG(...) do { } while (0)
+
+#endif
+
 static void
 banner (void)
 {
@@ -236,8 +288,6 @@ banner (void)
 // means that the variable '1' is equivalent to variable '2'. We simply
 // encode those XOR clauses back to CNF by introducing Tseitin variables.
 
-static struct int_stack xors;
-
 static void
 ternary (int a, int b, int c)
 {
@@ -251,15 +301,14 @@ quaternary (int a, int b, int c, int d)
 }
 
 static void
-direct_xor_encoding (size_t size, int * l)
+direct_xor_encoding (size_t size, int *l)
 {
 #ifndef NDEBUG
-  if (logging)
+  if (logging_prefix ("direct encoding of size %zu XOR", size))
     {
-      printf ("c MAIN 0 direct encoding of size %zu XOR", size);
       for (size_t i = 0; i < size; i++)
 	printf (" %d", l[i]);
-      fputc ('\n', stdout);
+      logging_suffix ();
     }
 #endif
   if (!size)
@@ -268,10 +317,10 @@ direct_xor_encoding (size_t size, int * l)
     satch_add_unit (solver, l[0]);
   else if (size == 2)
     satch_add_binary_clause (solver, l[0], l[1]),
-    satch_add_binary_clause (solver, -l[0], -l[1]);
+      satch_add_binary_clause (solver, -l[0], -l[1]);
   else if (size == 3)
     ternary (-l[0], -l[1], l[2]), ternary (-l[0], l[1], -l[2]),
-    ternary (l[0], -l[1], -l[2]), ternary (l[0], l[1], l[2]);
+      ternary (l[0], -l[1], -l[2]), ternary (l[0], l[1], l[2]);
   else
     {
       assert (size == 4);
@@ -286,85 +335,34 @@ direct_xor_encoding (size_t size, int * l)
     }
 }
 
-#if 0
+// This elegant XOR constraint encoding due to Marijn Heule requires the
+// least number of variables and clauses.  In essence the XOR is translated
+// into a ternary tree and variables are introduced in a layered fashion.
 
-// Recursive less optimal encoding (uses more variables).  It also
-// introduces Tseitin variables in a DFS way in terms of the balanced
-// generated XOR tree which looks at least less elegant.
-
-static int
-encode_xor (int tseitin, size_t size, int * literals)
-{
-  if (size < 5)
-    {
-      direct_xor_encoding (size, literals);
-      return tseitin;
-    }
-  const int lit = tseitin++;
-#ifndef NDEBUG
-  if (logging)
-    {
-      printf ("c MAIN 0 encoding of size %zu XOR", size);
-      for (size_t i = 0; i < size; i++)
-	printf (" %d", literals[i]);
-      if (size >= 5)
-	printf (" using Tseitin variable %d", lit);
-      fputc ('\n', stdout);
-    }
-#endif
-  struct int_stack tmp;
-  INIT (tmp);
-  for (size_t i = 0; i < size/2; i++)
-    PUSH (tmp, literals[i]);
-  PUSH (tmp, -lit);
-  tseitin = encode_xor (tseitin, SIZE (tmp), tmp.begin);
-  CLEAR (tmp);
-  for (size_t i = size/2; i < size; i++)
-    PUSH (tmp, literals[i]);
-  PUSH (tmp, lit);
-  tseitin = encode_xor (tseitin, SIZE (tmp), tmp.begin);
-  RELEASE (tmp);
-  return tseitin;
-}
-
-#else
-
-// This gives a smallest (less variables) XOR encoding where the Tseitin
-// variables are introduced in a layered way.  The implementation is
-// currently quadratic (due to shifting the working stack down-ward by three
-// literals in every loop round). If this becomes a bottle-neck (while for
-// instance encoding XOR constraints of size 10000) one could fall back to
-// use a proper working 'queue' implementation.
+// First we introduce a layer of n/3 variables, where each of them
+// represents the parity of three input variables.  Then for each triple of
+// those introduced variables we add in the second layer a new variable etc.
+// For an XOR over four variables or less we use a direct encoding.
 
 static int
-encode_xor (int tseitin, size_t size, int * literals)
+encode_xor (int tseitin, size_t size, int *literals)
 {
-  struct int_stack work;
-  INIT (work);
+  struct int_queue q;
+  INIT_QUEUE (q);
   for (size_t i = 0; i < size; i++)
-    PUSH (work, literals[i]);
-  while (SIZE (work) > 4)
+    ENQUEUE (q, literals[i]);
+  while ((size = SIZE_QUEUE (q)) > 4)
     {
       tseitin++;
-      int * l = work.begin;
-#ifndef NDEBUG
-      if (logging)
-	printf ("c MAIN new Tseitin variable %d = %d ^ %d ^ %d\n",
-		tseitin, l[0], l[1], l[2]);
-#endif
-      int t[4] = { l[0], l[1], l[2], -tseitin };
+      int t[4] = { DEQUEUE (q), DEQUEUE (q), DEQUEUE (q), -tseitin };
+      LOG ("new variable %d = %d ^ %d ^ %d", tseitin, t[0], t[1], t[2]);
       direct_xor_encoding (4, t);
-      for (int * p = l + 3; p != work.end; p++)
-	p[-3] = p[0];
-      work.end -= 3;
-      *work.end++ = tseitin;
+      ENQUEUE (q, tseitin);
     }
-  direct_xor_encoding (SIZE (work), work.begin);
-  RELEASE (work);
+  direct_xor_encoding (size, q.head);
+  RELEASE_QUEUE (q);
   return tseitin;
 }
-
-#endif
 
 // In forced parsing mode we do not know the number of actual variables
 // while parsing an XOR clause and since we need to introduce Tseitin
@@ -376,32 +374,39 @@ encode_xor (int tseitin, size_t size, int * literals)
 // order, which will change the (initial) order how these variables are
 // picked as decisions (in forced mode they will always be picked first).
 
+// As consequence there is a high chance that the SAT solver will behave
+// differently after parsing an XNF in forced mode (for CNF in DIMACS this
+// issue does not occur since variables are activated in the same way).
+
 static void
 encode_xors (int tseitin, size_t start)
 {
-  int * x = xors.begin + start;
-  const int * const end = xors.end;
-  for (int * y = x; x != end; x = y + 1)
+  int *x = xors.begin + start;
+  const int *const end = xors.end;
+  for (int *y = x; x != end; x = y + 1)
     {
       for (y = x; assert (y != end), *y; y++)
 	;
-      tseitin = encode_xor (tseitin, (size_t)(y - x), x);
+      tseitin = encode_xor (tseitin, (size_t) (y - x), x);
     }
 }
 
 #ifndef NDEBUG
 
+// The XORs are not seen by the library and thus we need to check models
+// returned by the library manually here.
+
 static void
 check_xors_satisfied (void)
 {
-  if (EMPTY (xors))
+  if (EMPTY_STACK (xors))
     return;
 
-  const int * x = xors.begin;
-  const int * const end = xors.end;
+  const int *x = xors.begin;
+  const int *const end = xors.end;
   size_t checked = 0;
 
-  for (const int * y = x; x != end; x = y + 1)
+  for (const int *y = x; x != end; x = y + 1)
     {
       checked++;
 
@@ -414,7 +419,7 @@ check_xors_satisfied (void)
 	  int tmp = satch_val (solver, lit);
 	  if (!tmp)
 	    partial = lit;
-	  else if (tmp  == lit)
+	  else if (tmp == lit)
 	    satisfied = !satisfied;
 	  else
 	    assert (tmp == -lit);
@@ -430,7 +435,7 @@ check_xors_satisfied (void)
 	fprintf (stderr, "partial assignment of %d in", partial);
       else
 	fputs ("unsatisfied", stderr);
-      fprintf (stderr, " size %zu XOR:\n", (size_t)(y - x));
+      fprintf (stderr, " size %zu XOR:\n", (size_t) (y - x));
       for (const int *z = x; (lit = *z); z++)
 	fprintf (stderr, "%d ", lit);
       fputs ("0\n", stderr);
@@ -439,7 +444,7 @@ check_xors_satisfied (void)
     }
 
   if (logging)
-    printf ("c MAIN 0 checked all %zu XORs to be satisfied\n", checked);
+    LOG ("checked all %zu XORs to be satisfied", checked);
 }
 
 #endif
@@ -566,10 +571,10 @@ parse (void)
     }
   if (ch != '\n')
     parse_error ("expected new line after 'p %cnf %d %zu'", format,
-                 variables, specified_clauses);
+		 variables, specified_clauses);
 
   message ("parsed 'p %cnf %d %zu' header",
-           format, variables, specified_clauses);
+	   format, variables, specified_clauses);
   satch_reserve (solver, variables);
 
   int parsed_variables = 0;	// Maximum parsed variable index.
@@ -599,7 +604,7 @@ parse (void)
       if (ch == 'c')
 	{
 
-	COMMENT:	// See below on why we need 'goto' here.
+	COMMENT:		// See below on why we need 'goto' here.
 
 	  while ((ch = next ()) != '\n')
 	    if (ch == EOF)
@@ -708,19 +713,18 @@ parse (void)
 	  // beneficial to activate and place Tseitin variables close to the
 	  // other variables seen so far and thus in this XOR clause).
 
-	  const size_t new_offset = SIZE (xors);
+	  const size_t new_offset = SIZE_STACK (xors);
 	  const size_t size = new_offset - offset_of_encoded_xors;
-	  int * x = xors.begin + offset_of_encoded_xors;
+	  int *x = xors.begin + offset_of_encoded_xors;
 
 	  if (force)
 	    {
 #ifndef NDEBUG
-	      if (logging)
+	      if (logging_prefix ("parsed size %zu XOR", size))
 		{
-		  printf ("c MAIN 0 parsed size %zu XOR", size);
-		  for (const int * p = x; x != xors.end; x++)
+		  for (const int *p = x; x != xors.end; x++)
 		    printf (" %d", *p);
-		  fputc ('\n', stdout);
+		  logging_suffix ();
 		}
 #endif
 	      PUSH (xors, 0);
@@ -731,9 +735,9 @@ parse (void)
 #ifndef NDEBUG
 	      PUSH (xors, 0);
 	      offset_of_encoded_xors = new_offset + 1;
-	      assert (offset_of_encoded_xors == SIZE (xors));
+	      assert (offset_of_encoded_xors == SIZE_STACK (xors));
 #else
-	      CLEAR (xors);
+	      CLEAR_STACK (xors);
 	      assert (!offset_of_encoded_xors);
 #endif
 	    }
@@ -766,7 +770,7 @@ parse (void)
 
   // Handle delayed XOR encoding in forced parsing mode.
 
-  if (!EMPTY (xors))
+  if (!EMPTY_STACK (xors))
     encode_xors (parsed_variables, offset_of_encoded_xors);
 
   const double seconds = satch_stop_profiling_parsing (solver);
@@ -778,10 +782,10 @@ parse (void)
 
   if (parsed_xors == 1)
     message ("including exactly one XOR clause %.0f%%",
-             percent (1, parsed_clauses));
+	     percent (1, parsed_clauses));
   else if (parsed_xors > 1)
     message ("including %zu XOR clauses %.0f%%",
-             parsed_xors, percent (parsed_xors, parsed_clauses));
+	     parsed_xors, percent (parsed_xors, parsed_clauses));
   else if (format == 'x')
     assert (!parsed_xors), message ("without any XOR clauses");
 
@@ -806,7 +810,7 @@ parse (void)
 	   bytes, bytes / (double) (1 << 20));
 
 #ifdef NDEBUG
-  RELEASE (xors);
+  RELEASE_STACK (xors);
 #endif
 }
 
@@ -981,6 +985,10 @@ init_signal_handler (void)
 
 /*------------------------------------------------------------------------*/
 
+// We assume that we only each long option to used only once.  The first
+// usage 'a' is stored at the given pointer 'p' and it is checked that we
+// did not set this option twice.
+
 static void
 set_option (const char **p, const char *a)
 {
@@ -991,6 +999,18 @@ set_option (const char **p, const char *a)
   else
     error ("redundant '%s' and '%s'", *p, a);
 }
+
+// Parsing of a long option with a 32-bit integer argument precisely
+// checking for under- and overflow.
+
+// The first argument 'arg' is the string giving as long option on the
+// command line.  The 'name' denotes the name of the option (without leading
+// '--' and trailing '=...').  The third argument is used to store the 'arg'
+// string (with 'set_option' above).  The actual value is returned through
+// the last pointer.
+
+// Checking both overflows requires two separate loops below (since
+// 'INT_MAX < -INT_MIN' and the second loop would fail for 'INT_MIN').
 
 static bool
 parse_int_option (const char *arg,
@@ -1232,7 +1252,7 @@ main (int argc, char **argv)
     satch_section (solver, "shutting down");
   satch_release (solver);
 #ifndef NDEBUG
-  RELEASE (xors);
+  RELEASE_STACK (xors);
 #endif
   message ("exit %d", res);
 

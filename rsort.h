@@ -45,7 +45,7 @@ do { \
 
 #define RSORT(VTYPE,RTYPE,S,RANK) \
 do { \
-  const size_t N_RANK = SIZE (S); \
+  const size_t N_RANK = SIZE_STACK (S); \
   if (N_RANK <= 1) \
     break; \
   \

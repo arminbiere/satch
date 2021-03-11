@@ -1,3 +1,10 @@
+Release 0.4.17
+--------------
+
+- Renamed 'stack' operations (more verbose names).
+- Using queue to encode XORs to avoid quadratic worst-case.
+- Reusing the trail during restarts using 'matching trail level' (MTL).
+
 Release 0.4.7
 -------------
 

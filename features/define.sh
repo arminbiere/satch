@@ -17,6 +17,7 @@
 [ $reduce = no ] && CFLAGS="$CFLAGS -DNREDUCE"
 [ $rephase = no ] && CFLAGS="$CFLAGS -DNREPHASE"
 [ $restart = no ] && CFLAGS="$CFLAGS -DNRESTART"
+[ $reuse = no ] && CFLAGS="$CFLAGS -DNREUSE"
 [ $rsort = no ] && CFLAGS="$CFLAGS -DNRSORT"
 [ $save = no ] && CFLAGS="$CFLAGS -DNSAVE"
 [ $sort = no ] && CFLAGS="$CFLAGS -DNSORT"

@@ -47,6 +47,9 @@
 #ifdef NRESTART
 "-restart"
 #endif
+#ifdef NREUSE
+"-reuse"
+#endif
 #ifdef NRSORT
 "-rsort"
 #endif

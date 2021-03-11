@@ -20,6 +20,7 @@ parse () {
     x"--no-reduce") reduce=no;;
     x"--no-rephase") rephase=no;;
     x"--no-restart") restart=no;;
+    x"--no-reuse") reuse=no;;
     x"--no-rsort") rsort=no;;
     x"--no-save") save=no;;
     x"--no-sort") sort=no;;

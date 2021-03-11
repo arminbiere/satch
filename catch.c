@@ -201,7 +201,7 @@ checker_export (unsigned ilit)
 static int
 checker_trivial_clause (struct checker *checker)
 {
-  assert (EMPTY (checker->trail));	// Otherwise backtrack first.
+  assert (EMPTY_STACK (checker->trail));	// Otherwise backtrack first.
 
   const signed char *values = checker->values;
   signed char *marks = checker->marks;
@@ -251,7 +251,7 @@ checker_clear_clause (struct checker *checker)
       assert (marks[lit]);
       marks[lit] = 0;
     }
-  CLEAR (checker->clause);
+  CLEAR_STACK (checker->clause);
 }
 
 /*------------------------------------------------------------------------*/
@@ -290,7 +290,7 @@ checker_propagate (struct checker *checker)
 
   size_t propagate = 0;
 
-  while (propagate < SIZE (checker->trail))
+  while (propagate < SIZE_STACK (checker->trail))
     {
       const unsigned lit = ACCESS (checker->trail, propagate);
       propagate++;
@@ -353,7 +353,7 @@ static void
 checker_backtrack (struct checker *checker)
 {
   signed char *values = checker->values;
-  while (!EMPTY (checker->trail))
+  while (!EMPTY_STACK (checker->trail))
     {
       const unsigned lit = POP (checker->trail);
       const unsigned not_lit = NOT (lit);
@@ -507,7 +507,7 @@ checker_flush_satisfied_clauses (struct checker *checker, unsigned lit,
 static void
 checker_flush_all_satisfied_clauses (struct checker *checker)
 {
-  assert (EMPTY (checker->trail));
+  assert (EMPTY_STACK (checker->trail));
 
   size_t collected = 0;
 
@@ -588,7 +588,7 @@ checker_add_clause (struct checker *checker)
       assert (checker->new_units < UINT_MAX);
       checker->new_units++;	// For garbage collection!
       if (checker_propagate (checker))
-	CLEAR (checker->trail);	// We are done, reset trail!
+	CLEAR_STACK (checker->trail);	// We are done, reset trail!
       else
 	checker->inconsistent = 1;
     }
@@ -599,7 +599,7 @@ checker_add_clause (struct checker *checker)
       assert (lit == unit);
       assert (!values[lit]);
       assert (!values[other]);
-      const size_t size = SIZE (checker->clause);
+      const size_t size = SIZE_STACK (checker->clause);
       assert (2 <= size);
       assert (size <= UINT_MAX);
       const size_t bytes = sizeof (struct clause) + size * sizeof (unsigned);
@@ -636,7 +636,7 @@ checker_add_clause (struct checker *checker)
 static void
 checker_internal_delete_clause (struct checker *checker)
 {
-  const size_t size = SIZE (checker->clause);
+  const size_t size = SIZE_STACK (checker->clause);
   assert (size < UINT_MAX);
 
   struct clause **const watches = checker->watches;
@@ -719,7 +719,7 @@ checker_internal_delete_clause (struct checker *checker)
 static void
 check_clause_implied (struct checker *checker)
 {
-  assert (EMPTY (checker->trail));
+  assert (EMPTY_STACK (checker->trail));
   const signed char *const values = checker->values;
   int failed = 0;
   for (all_elements_on_stack (unsigned, lit, checker->clause))
@@ -751,7 +751,7 @@ checker_release_clauses (struct checker *checker, struct clause *c)
 {
   const signed char *const values = checker->values;
 
-  if (!EMPTY (checker->trail))
+  if (!EMPTY_STACK (checker->trail))
     checker_backtrack (checker);
 
   while (c)
@@ -787,8 +787,8 @@ checker_invalid_usage (const char *message, const char *function)
 {
   COLORS (2);
   fprintf (stderr, "%schecker: %sfatal error: "
-           "%sinvalid API usage in '%s': %s\n", 
-           BOLD, RED, NORMAL, function, message);
+	   "%sinvalid API usage in '%s': %s\n",
+	   BOLD, RED, NORMAL, function, message);
   fflush (stderr);
   abort ();
 }
@@ -851,11 +851,14 @@ checker_statistics (struct checker *checker)
 static void
 checker_log_clause (struct checker *checker, const char *type)
 {
+  COLORS (1);
+  COLOR (MAGENTA);
   assert (checker->logging);
   fputs (logging_prefix, stdout);
   fputs (type, stdout);
   for (all_elements_on_stack (unsigned, lit, checker->clause))
       printf (" %d", checker_export (lit));
+  COLOR (NORMAL);
   fputc ('\n', stdout);
   fflush (stdout);
 }
@@ -920,8 +923,8 @@ checker_release (struct checker *checker)
   free (checker->marks);
   free (checker->values);
   free (checker->watches);
-  RELEASE (checker->clause);
-  RELEASE (checker->trail);
+  RELEASE_STACK (checker->clause);
+  RELEASE_STACK (checker->trail);
   free (checker);
 }
 
@@ -951,7 +954,7 @@ checker_add_original_clause (struct checker *checker)
 #endif
   if (checker->inconsistent)
     {
-      CLEAR (checker->clause);
+      CLEAR_STACK (checker->clause);
       return;
     }
   checker->original++;
@@ -970,7 +973,7 @@ checker_add_learned_clause (struct checker *checker)
 #endif
   if (checker->inconsistent)
     {
-      CLEAR (checker->clause);
+      CLEAR_STACK (checker->clause);
       return;
     }
   checker->learned++;
@@ -990,7 +993,7 @@ checker_delete_clause (struct checker *checker)
 #endif
   if (checker->inconsistent)
     {
-      CLEAR (checker->clause);
+      CLEAR_STACK (checker->clause);
       return;
     }
   checker->deleted++;

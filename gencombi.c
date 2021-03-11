@@ -474,7 +474,7 @@ release_frame (struct frame *frame, int k)
 
   satch_release (frame->solver);
   msg ("frame[%d] released with status %d conflicts %d",
-        k, frame->status, frame->conflicts);
+       k, frame->status, frame->conflicts);
 }
 
 static struct frame *frames;
@@ -717,7 +717,7 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 static void
 print_solution (int k)
 {
-  struct frame * frame = get_frame (k);
+  struct frame *frame = get_frame (k);
   assert (frame->encoded);
   assert (!frame->released);
   assert (frame->status == SATISFIABLE);
@@ -749,7 +749,7 @@ static const int expected_margin = 10;
 static int
 solve (int k)
 {
-  struct frame * frame = get_frame (k);
+  struct frame *frame = get_frame (k);
   if (frame->status)
     return frame->status;
   if (!frame->encoded)
@@ -784,12 +784,12 @@ update_limits (int ub)
   msg ("updating limits to %d conflicts in total", limit);
   for (int k = 2; k < ub; k++)
     {
-      struct frame * frame = frames + k;
+      struct frame *frame = frames + k;
       int conflicts = frame->conflicts;
       if (conflicts > limit)
-	frame->limit = initial_conflict_limit/2;
+	frame->limit = initial_conflict_limit / 2;
       else
-	frame->limit = (limit - conflicts)/2;
+	frame->limit = (limit - conflicts) / 2;
     }
 }
 

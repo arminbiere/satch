@@ -8,6 +8,9 @@
 #if defined(NBUMP) && defined(NREASONS)
 #error "'NBUMP' implies 'NREASONS' (the latter should not be defined)"
 #endif
+#if defined(NBUMP) && defined(NREUSE)
+#error "'NBUMP' implies 'NREUSE' (the latter should not be defined)"
+#endif
 #if defined(NBUMP) && defined(NRSORT)
 #error "'NBUMP' implies 'NRSORT' (the latter should not be defined)"
 #endif
@@ -38,6 +41,9 @@
 #if defined(NLEARN) && defined(NRESTART)
 #error "'NLEARN' implies 'NRESTART' (the latter should not be defined)"
 #endif
+#if defined(NLEARN) && defined(NREUSE)
+#error "'NLEARN' implies 'NREUSE' (the latter should not be defined)"
+#endif
 #if defined(NLEARN) && defined(NTIER1)
 #error "'NLEARN' implies 'NTIER1' (the latter should not be defined)"
 #endif
@@ -64,6 +70,9 @@
 #endif
 #if defined(NREPHASE) && defined(NINVERTED)
 #error "'NREPHASE' implies 'NINVERTED' (the latter should not be defined)"
+#endif
+#if defined(NRESTART) && defined(NREUSE)
+#error "'NRESTART' implies 'NREUSE' (the latter should not be defined)"
 #endif
 #if defined(NSAVE) && defined(NBEST)
 #error "'NSAVE' implies 'NBEST' (the latter should not be defined)"

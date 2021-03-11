@@ -47,6 +47,9 @@
 #ifdef NRESTART
 #pragma message "#define NRESTART"
 #endif
+#ifdef NREUSE
+#pragma message "#define NREUSE"
+#endif
 #ifdef NRSORT
 #pragma message "#define NRSORT"
 #endif

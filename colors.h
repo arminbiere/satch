@@ -7,23 +7,11 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-static int satch_terminal_table[3] = { -1, -1, -1 };
-
-static inline bool
-satch_is_a_terminal (int fd)
-{
-  assert (0 < fd), assert (fd < 3);
-  int * p = satch_terminal_table + fd;
-  if (*p < 0)
-    *p = !!isatty (fd);
-  return *p;
-}
-
 #define COLORS(FD) \
   assert (FD == 1 || FD == 2); \
-  bool colors = satch_is_a_terminal (FD); \
+  bool colors = isatty (FD); \
   FILE * terminal_file = ((FD == 1) ? stdout : stderr); \
-  (void) terminal_file
+  (void) terminal_file		/* needed if 'terminal_file' is not used */
 
 #define BLUE_CODE	"\033[34m"
 #define BOLD_CODE	"\033[1m"

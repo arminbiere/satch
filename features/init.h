@@ -8,6 +8,9 @@
 #if defined(NBUMP) && !defined(NREASONS)
 #define NREASONS
 #endif
+#if defined(NBUMP) && !defined(NREUSE)
+#define NREUSE
+#endif
 #if defined(NBUMP) && !defined(NRSORT)
 #define NRSORT
 #endif
@@ -38,6 +41,9 @@
 #if defined(NLEARN) && !defined(NRESTART)
 #define NRESTART
 #endif
+#if defined(NLEARN) && !defined(NREUSE)
+#define NREUSE
+#endif
 #if defined(NLEARN) && !defined(NTIER1)
 #define NTIER1
 #endif
@@ -64,6 +70,9 @@
 #endif
 #if defined(NREPHASE) && !defined(NINVERTED)
 #define NINVERTED
+#endif
+#if defined(NRESTART) && !defined(NREUSE)
+#define NREUSE
 #endif
 #if defined(NSAVE) && !defined(NBEST)
 #define NBEST

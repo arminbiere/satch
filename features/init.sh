@@ -17,6 +17,7 @@ reasons=yes
 reduce=yes
 rephase=yes
 restart=yes
+reuse=yes
 rsort=yes
 save=yes
 sort=yes

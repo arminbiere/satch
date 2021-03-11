@@ -1,5 +1,6 @@
 --no-block,--no-virtual
 --no-bump,--no-reasons
+--no-bump,--no-reuse
 --no-bump,--no-vmtf
 --no-bump,--no-vsids
 --no-glue,--no-tier1
@@ -10,6 +11,7 @@
 --no-reduce,--no-used
 --no-rephase,--no-best
 --no-rephase,--no-inverted
+--no-restart,--no-reuse
 --no-save,--no-rephase
 --no-sort,--no-rsort
 --no-stable,--no-target
