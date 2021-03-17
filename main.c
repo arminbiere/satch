@@ -249,7 +249,8 @@ static void
 logging_suffix (void)
 {
   assert (logging);
-  fputs (NORMAL_CODE, stdout);
+  COLORS (1);
+  COLOR (NORMAL);
   fputc ('\n', stdout);
   fflush (stdout);
 }
