@@ -112,6 +112,13 @@ else
   learning=yes
 fi
 
+if [ x"`grep DNCDCL makefile`" != x ] ||  [ x"`grep DNVSIDS makefile | grep DNVMTF`" != x ]
+then
+  dlis=yes
+else
+  dlis=no
+fi
+
 msg "first running basic usage tests"
 
 run 0 ./satch -h
@@ -204,14 +211,14 @@ run 10 ./satch xnfs/xor24.xnf
 
 run 10 ./satch cnfs/regr1.cnf
 
-[ $learning = no ] && \
+[ $learning = no ] && [ $dlis = no ] && \
 run 20 ./satch cnfs/prime65537.cnf
 
 run 20 ./satch cnfs/add4.cnf
-run 20 ./satch cnfs/add8.cnf
 
-if [ $learning = no ]
+if [ $learning = no ] && [ $dlis = no ];
 then
+run 20 ./satch cnfs/add8.cnf
 run 20 ./satch cnfs/add16.cnf
 run 20 ./satch cnfs/add32.cnf
 run 20 ./satch cnfs/add64.cnf

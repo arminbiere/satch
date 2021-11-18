@@ -3,7 +3,12 @@
 --no-bump,disable variable bumping (during conflict analysis)
 --no-bump-reasons,disable bumping of reason side literals
 --no-cache,disable caching searched replacements in clauses
+--no-cdcl,disable learning and backjumping (pure DPLL)
+--no-cheapprofiling,enable expansive profiling
+--no-chrono,disable chronological backtracking
+--no-chronoreuse,jump only to the last level
 --no-color,disable colored outputs for terminals
+--no-control,use control structure for the trail
 --no-elimination,disable bounded variable elimination
 --no-elimination-limits,disable size, occurrence and round limits
 --no-focused,disable focused mode and always use stable mode
@@ -36,6 +41,9 @@
 --no-used,disable keeping used clauses (above tier 1 limit)
 --no-variadic,disable literals embedding as in clauses
 --no-virtual,disable virtual binary clauses
+--no-vivification,disable vivification
+--no-vivificationlimits,disable limits in vivification
+--no-vivifyimply,disable subsumption detection during vivification
 --no-vmtf,disable VMTF and always use VSIDS instead
 --no-vsids,disable VSIDS and always use VMTF instead
 --no-watches,disable clause watches and use counters instead

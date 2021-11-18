@@ -1,3 +1,16 @@
+Release 0.5.5
+-------------
+ - Fall back to DLIS when VMTF and VSIDS is off.
+ - Added NCDCL to run pure DPLL in satch (without non-chronological
+   backjumping). It uses DLIS as decision heuristic and does not
+   restart.
+ - NCHEAPPROFILING does more expansive profiling
+ - Added vivification (VIVIFICATION), with detection of implied literals
+   (NVIVIFYIMPLY)
+ - Chronological backtracking (CHRONO). You can either reuse the trail similarly
+   to restarts or always backtrack to the previous level (CHRONOREUSE)
+ - More advanced minimization criterion (see our SAT'21 paper)
+
 Release 0.5.4
 -------------
 

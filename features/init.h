@@ -8,6 +8,12 @@
 #if defined(NBUMP) && !defined(NBUMPREASONS)
 #define NBUMPREASONS
 #endif
+#if defined(NBUMP) && !defined(NINVERTED)
+#define NINVERTED
+#endif
+#if defined(NBUMP) && !defined(NRESTART)
+#define NRESTART
+#endif
 #if defined(NBUMP) && !defined(NREUSE)
 #define NREUSE
 #endif
@@ -22,6 +28,87 @@
 #endif
 #if defined(NBUMP) && !defined(NVSIDS)
 #define NVSIDS
+#endif
+#if defined(NCDCL) && !defined(NBEST)
+#define NBEST
+#endif
+#if defined(NCDCL) && !defined(NCHRONO)
+#define NCHRONO
+#endif
+#if defined(NCDCL) && !defined(NCHRONOREUSE)
+#define NCHRONOREUSE
+#endif
+#if defined(NCDCL) && !defined(NFOCUSED)
+#define NFOCUSED
+#endif
+#if defined(NCDCL) && !defined(NGLUE)
+#define NGLUE
+#endif
+#if defined(NCDCL) && !defined(NINPROCESSING)
+#define NINPROCESSING
+#endif
+#if defined(NCDCL) && !defined(NLEARN)
+#define NLEARN
+#endif
+#if defined(NCDCL) && !defined(NMINIMIZE)
+#define NMINIMIZE
+#endif
+#if defined(NCDCL) && !defined(NREDUCE)
+#define NREDUCE
+#endif
+#if defined(NCDCL) && !defined(NRESTART)
+#define NRESTART
+#endif
+#if defined(NCDCL) && !defined(NREUSE)
+#define NREUSE
+#endif
+#if defined(NCDCL) && !defined(NREUSESTABLE)
+#define NREUSESTABLE
+#endif
+#if defined(NCDCL) && !defined(NSHRINK)
+#define NSHRINK
+#endif
+#if defined(NCDCL) && !defined(NSORTANALYZED)
+#define NSORTANALYZED
+#endif
+#if defined(NCDCL) && !defined(NSORTDEDUCED)
+#define NSORTDEDUCED
+#endif
+#if defined(NCDCL) && !defined(NTIER1)
+#define NTIER1
+#endif
+#if defined(NCDCL) && !defined(NTIER2)
+#define NTIER2
+#endif
+#if defined(NCDCL) && !defined(NUSED)
+#define NUSED
+#endif
+#if defined(NCDCL) && !defined(NVMTF)
+#define NVMTF
+#endif
+#if defined(NCDCL) && !defined(NVSIDS)
+#define NVSIDS
+#endif
+#if defined(NCHRONO) && !defined(NCHRONOREUSE)
+#define NCHRONOREUSE
+#endif
+#if defined(NCONTROL) && !defined(NCHRONO)
+#define NCHRONO
+#endif
+#if defined(NCONTROL) && !defined(NCHRONOREUSE)
+#define NCHRONOREUSE
+#endif
+#if defined(NCONTROL) && !defined(NSHRINK)
+#define NSHRINK
+#endif
+#if defined(NCONTROL) && !defined(NVIVIFICATION)
+#define NVIVIFICATION
+#endif
+#if defined(NCONTROL) && !defined(NVIVIFICATIONLIMITS)
+#define NVIVIFICATIONLIMITS
+#endif
+#if defined(NCONTROL) && !defined(NVIVIFYIMPLY)
+#define NVIVIFYIMPLY
 #endif
 #if defined(NELIMINATION) && !defined(NELIMINATIONLIMITS)
 #define NELIMINATIONLIMITS
@@ -163,6 +250,12 @@
 #endif
 #if defined(NUSED) && !defined(NTIER2)
 #define NTIER2
+#endif
+#if defined(NVIVIFICATION) && !defined(NVIVIFICATIONLIMITS)
+#define NVIVIFICATIONLIMITS
+#endif
+#if defined(NVIVIFICATION) && !defined(NVIVIFYIMPLY)
+#define NVIVIFYIMPLY
 #endif
 #if defined(NVMTF) && !defined(NSORTANALYZED)
 #define NSORTANALYZED

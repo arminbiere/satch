@@ -17,8 +17,23 @@
 #ifdef NCACHE
 #pragma message "#define NCACHE"
 #endif
+#ifdef NCDCL
+#pragma message "#define NCDCL"
+#endif
+#ifdef NCHEAPPROFILING
+#pragma message "#define NCHEAPPROFILING"
+#endif
+#ifdef NCHRONO
+#pragma message "#define NCHRONO"
+#endif
+#ifdef NCHRONOREUSE
+#pragma message "#define NCHRONOREUSE"
+#endif
 #ifdef NCOLOR
 #pragma message "#define NCOLOR"
+#endif
+#ifdef NCONTROL
+#pragma message "#define NCONTROL"
 #endif
 #ifdef NELIMINATION
 #pragma message "#define NELIMINATION"
@@ -115,6 +130,15 @@
 #endif
 #ifdef NVIRTUAL
 #pragma message "#define NVIRTUAL"
+#endif
+#ifdef NVIVIFICATION
+#pragma message "#define NVIVIFICATION"
+#endif
+#ifdef NVIVIFICATIONLIMITS
+#pragma message "#define NVIVIFICATIONLIMITS"
+#endif
+#ifdef NVIVIFYIMPLY
+#pragma message "#define NVIVIFYIMPLY"
 #endif
 #ifdef NVMTF
 #pragma message "#define NVMTF"
