@@ -1,29 +1,41 @@
---no-active,disable activating variables lazily
---no-best,disable best trail target rephasing (in stable mode)
+--no-best,disable best trail rephasing (in stable mode)
 --no-block,disable blocking literals (thus slower propagation)
 --no-bump,disable variable bumping (during conflict analysis)
+--no-bump-reasons,disable bumping of reason side literals
 --no-cache,disable caching searched replacements in clauses
 --no-color,disable colored outputs for terminals
+--no-elimination,disable bounded variable elimination
+--no-elimination-limits,disable size, occurrence and round limits
 --no-focused,disable focused mode and always use stable mode
 --no-glue,disable glue based clause reduction (use size only)
+--no-inprocessing,disable inprocessing but enable preprocessing
 --no-inverted,disable inverted target rephasing (in stable mode)
---no-learn,disable clause learning (do not add learned clauses)
+--no-lazy-activation,disable activating variables lazily
+--no-learn,disable clause learning (no learned clauses)
+--no-limits,disable subsumption and elimination limits
 --no-minimize,disable clause minimization (of 1st UIP clause)
---no-reasons,disable bumping of reason side literals
---no-reduce,disable clause reduction (keep learned clauses forever)
+--no-radix-sort,disable radix-sorting of literals and clauses
+--no-reduce,disable clause reduction (keep learned clauses)
 --no-rephase,disable rephasing / resetting of saved phases
 --no-restart,disable restarting (otherwise moving average based)
 --no-reuse,disable reusing the trail during restart
---no-rsort,disable radix-sorting of literals and clauses
---no-save,disable phase saving (instead use default decision phase)
---no-sort,disable sorting of bumped literals in focused mode
+--no-reusestable,disable trail reuse in stable mode
+--no-save,disable phase saving (use default decision phase)
+--no-shrink,disable all-uip shrinking of minimized clause
+--no-simplification,disable preprocessing and inprocessing
+--no-sort-analyzed,disable bumped sorting in focused mode
+--no-sort-deduced,disable sorting of deduced in learned clause
 --no-stable,disable stable mode and always use focused mode
---no-target,disable target phases (phase selection in stable mode)
---no-tier1,disable keeping tier 1 clauses for ever (glue 2 and less)
---no-tier2,disable delaying reduction of tier 2 clauses (glue <= 6)
+--no-strengthening,disable self-subsuming resolution
+--no-subsumption,disable subsumption during variable elimination
+--no-subsumption-limits,disable size, occurrence and round limits
+--no-target,disable target phases (heuristic in stable mode)
+--no-tier1,disable keeping tier 1 clauses (glue <= 2)
+--no-tier2,disable delaying reduction of tier 2 (glue <= 6)
 --no-true,disable default 'true' decision phase (use 'false')
---no-used,disable keeping used clauses (above tier 1 glue limit)
+--no-used,disable keeping used clauses (above tier 1 limit)
 --no-variadic,disable literals embedding as in clauses
---no-virtual,disable virtual binary clauses (slower + more space)
+--no-virtual,disable virtual binary clauses
 --no-vmtf,disable VMTF and always use VSIDS instead
 --no-vsids,disable VSIDS and always use VMTF instead
+--no-watches,disable clause watches and use counters instead

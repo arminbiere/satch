@@ -11,7 +11,7 @@ config.c: main.c satch.c *.h features/*.h VERSION mkconfig.sh makefile
 catch.o: catch.c *.h makefile
 config.o: config.c makefile
 satch.o: satch.c *.h features/*.h makefile
-gencombi.o: gencombi.c *.h makefile
+gencombi.o: gencombi.c *.h features/*.h makefile
 main.o: main.c *.h makefile
 
 libsatch.a: catch.o config.o satch.o makefile
@@ -29,6 +29,7 @@ test: all
 	./tatch.sh
 
 test-all-options: gencombi
+	./gencombi -a -i 1 | ./checkconfig.sh -i
 	./gencombi -a 1 | ./checkconfig.sh
 test-all-pairs: gencombi
 	./gencombi -a -i 2 | ./checkconfig.sh -i
@@ -42,6 +43,6 @@ test-two-ways: gencombi
 
 clean:
 	rm -f libsatch.* satch gencombi testapi *.o makefile config.c
-	rm -f *~ *.gcda *.gcno *.gcov gmon.out cnfs/*.proof
+	rm -f *~ *.gcda *.gcno *.gcov gmon.out cnfs/*.proof implied.pdf
 
 .PHONY: all clean indent test test-all-options test-all-pairs test-all-triples test-two-ways

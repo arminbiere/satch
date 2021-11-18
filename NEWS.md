@@ -1,3 +1,14 @@
+Release 0.5.4
+-------------
+
+- possibly counters instead of watches
+- bounded variable elimination and subsumption
+  (as first inprocessing and preprocessing algorithms)
+- learned clause shrinking (from our SAT'21 paper)
+- '-f', '-l' and '-static' configure script options
+- LOGLIT / logging_literal for more verbose literal logging
+- removed passing solver fields as arguments (was actually slower)
+
 Release 0.4.17
 --------------
 

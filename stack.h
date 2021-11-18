@@ -1,7 +1,3 @@
-/*------------------------------------------------------------------------*/
-//   Copyright (c) 2021, Armin Biere, Johannes Kepler University Linz     //
-/*------------------------------------------------------------------------*/
-
 #ifndef _stack_h_INCLUDED
 #define _stack_h_INCLUDED
 
@@ -77,6 +73,16 @@ do { \
 #define CLEAR_STACK(S) \
 do { \
   (S).end = (S).begin; \
+} while (0)
+
+/*------------------------------------------------------------------------*/
+
+// Set size of stack to 'SIZE' (assumed smaller or equal to actual size).
+
+#define RESET_STACK(S,SIZE) \
+do { \
+  assert (SIZE <= SIZE_STACK (S)); \
+  (S).end = (S).begin + (SIZE); \
 } while (0)
 
 /*------------------------------------------------------------------------*/

@@ -122,11 +122,7 @@ msg "now solving CNF files"
 run 10 ./satch cnfs/true.cnf
 run 20 ./satch cnfs/false.cnf
 
-run 10 ./satch xnfs/true.xnf
-run 20 ./satch xnfs/false.xnf
-
 run 10 ./satch cnfs/trivial.cnf
-run 20 ./satch xnfs/inconsistent.xnf
 
 run 10 ./satch cnfs/unit1.cnf
 run 10 ./satch cnfs/unit2.cnf
@@ -135,26 +131,9 @@ run 10 ./satch cnfs/unit4.cnf
 run 20 ./satch cnfs/unit5.cnf
 run 20 ./satch cnfs/unit6.cnf
 
-run 10 ./satch xnfs/unit1.xnf
-run 10 ./satch xnfs/unit2.xnf
-run 20 ./satch xnfs/unit3.xnf
-
 run 10 ./satch cnfs/unit7.cnf
 run 20 ./satch cnfs/unit8.cnf
 run 20 ./satch cnfs/unit9.cnf
-
-run 10 ./satch xnfs/xor2.xnf
-run 10 ./satch xnfs/xor3.xnf
-run 10 ./satch xnfs/xor4.xnf
-run 10 ./satch xnfs/xor5.xnf
-run 10 ./satch xnfs/xor6.xnf
-run 10 ./satch xnfs/xor7.xnf
-run 10 ./satch xnfs/xor8.xnf
-run 10 ./satch xnfs/xor9.xnf
-run 10 ./satch xnfs/xor10.xnf
-run 10 ./satch xnfs/xor11.xnf
-run 10 ./satch xnfs/xor12.xnf
-run 10 ./satch xnfs/xor24.xnf
 
 run 20 ./satch cnfs/full2.cnf
 run 20 ./satch cnfs/full3.cnf
@@ -201,6 +180,27 @@ run 10 ./satch cnfs/prime1369.cnf
 run 10 ./satch cnfs/prime1681.cnf
 run 10 ./satch cnfs/prime1849.cnf
 run 10 ./satch cnfs/prime2209.cnf
+
+run 20 ./satch xnfs/inconsistent.xnf
+run 10 ./satch xnfs/true.xnf
+run 20 ./satch xnfs/false.xnf
+
+run 10 ./satch xnfs/unit1.xnf
+run 10 ./satch xnfs/unit2.xnf
+run 20 ./satch xnfs/unit3.xnf
+
+run 10 ./satch xnfs/xor2.xnf
+run 10 ./satch xnfs/xor3.xnf
+run 10 ./satch xnfs/xor4.xnf
+run 10 ./satch xnfs/xor5.xnf
+run 10 ./satch xnfs/xor6.xnf
+run 10 ./satch xnfs/xor7.xnf
+run 10 ./satch xnfs/xor8.xnf
+run 10 ./satch xnfs/xor9.xnf
+run 10 ./satch xnfs/xor10.xnf
+run 10 ./satch xnfs/xor11.xnf
+run 10 ./satch xnfs/xor12.xnf
+run 10 ./satch xnfs/xor24.xnf
 
 run 10 ./satch cnfs/regr1.cnf
 

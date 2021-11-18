@@ -2,26 +2,37 @@
 
 # Initialize all features to be enabled by default.
 
-active=yes
 best=yes
 block=yes
 bump=yes
+bumpreasons=yes
 cache=yes
 color=yes
+elimination=yes
+eliminationlimits=yes
 focused=yes
 glue=yes
+inprocessing=yes
 inverted=yes
+lazyactivation=yes
 learn=yes
+limits=yes
 minimize=yes
-reasons=yes
+radixsort=yes
 reduce=yes
 rephase=yes
 restart=yes
 reuse=yes
-rsort=yes
+reusestable=yes
 save=yes
-sort=yes
+shrink=yes
+simplification=yes
+sortanalyzed=yes
+sortdeduced=yes
 stable=yes
+strengthening=yes
+subsumption=yes
+subsumptionlimits=yes
 target=yes
 tier1=yes
 tier2=yes
@@ -31,3 +42,4 @@ variadic=yes
 virtual=yes
 vmtf=yes
 vsids=yes
+watches=yes

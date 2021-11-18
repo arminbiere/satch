@@ -3,7 +3,10 @@ all: generate
 generate: generate.c makefile
 	$(COMPILE) -o $@ $<
 clean:
-	rm -f generate makefile *~
+	rm -f generate makefile *~ implied.pdf
 indent:
 	indent generate.c
-.PHONY: all clean indent
+plot:
+	./plot.sh
+
+.PHONY: all clean indent plot

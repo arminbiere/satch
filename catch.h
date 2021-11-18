@@ -21,13 +21,12 @@ void checker_release (struct checker *);
 //
 void checker_verbose (struct checker *);
 
-#ifndef NDEBUG
-
 // Logging messages are enabled by calling this function. This is mainly
 // useful to debug discrepancies between checking proofs online and offline.
+// We keep a definition in the code even if 'LOGGING' is undefined so you
+// can always reference this function in your code.
 
 void checker_logging (struct checker *);
-#endif
 
 // The checker can be enabled to check that all added clauses are also
 // removed before the checker is released.  Clauses satisfied by unit

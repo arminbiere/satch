@@ -1,6 +1,4 @@
 /*------------------------------------------------------------------------*/
-//   Copyright (c) 2021, Armin Biere, Johannes Kepler University Linz     //
-/*------------------------------------------------------------------------*/
 
 // This is an online proof checker with the same semantics as the DRAT format
 // of the SAT competition.  More precisely we only have DRUP semantics,
@@ -88,32 +86,78 @@ struct checker
 
   int leak_checking;		// Enable leak checking at the end.
   int verbose;			// Print (few) verbose messages.
-#ifndef NDEBUG
+#ifdef LOGGING
   int logging;			// Log all calls.
 #endif
 };
 
 /*------------------------------------------------------------------------*/
 
+static unsigned
+SIGN (unsigned lit)
+{
+  return lit & 1;
+}
+
+static unsigned
+INDEX (unsigned lit)
+{
+  return lit >> 1;
+}
+
+static int
+checker_export (unsigned ilit)
+{
+  const unsigned iidx = INDEX (ilit);
+  assert (iidx < (unsigned) INT_MAX - 1);
+  const int eidx = iidx + 1;
+  const int elit = SIGN (ilit) ? -eidx : eidx;
+  return elit;
+}
+
+/*------------------------------------------------------------------------*/
+
 static void checker_fatal_error (const char *, ...)
   __attribute__((format (printf, 1, 2)));
+
+static void checker_failed (struct checker *, const char *, ...)
+  __attribute__((format (printf, 2, 3)));
+
+#define CHECKER_FATAL_ERROR_PREFIX \
+do { \
+  COLORS (2); \
+  fflush (stdout); \
+  fprintf (stderr, "%schecker: %sfatal error: %s", BOLD, RED, NORMAL); \
+  va_list ap; \
+  va_start (ap, msg); \
+  vfprintf (stderr, msg, ap); \
+  va_end (ap); \
+} while (0)
 
 static void
 checker_fatal_error (const char *msg, ...)
 {
-  COLORS (2);
-  fprintf (stderr, "%schecker: %sfatal error: %s", BOLD, RED, NORMAL);
-  va_list ap;
-  va_start (ap, msg);
-  vfprintf (stderr, msg, ap);
-  va_end (ap);
+  CHECKER_FATAL_ERROR_PREFIX;
   fputc ('\n', stderr);
   fflush (stderr);
   abort ();
 }
 
+static void
+checker_failed (struct checker *checker, const char *msg, ...)
+{
+  CHECKER_FATAL_ERROR_PREFIX;
+  fputc ('\n', stderr);
+  for (all_elements_on_stack (unsigned, lit, checker->clause))
+      fprintf (stderr, "%d ", checker_export (lit));
+  fputs ("0\n", stderr);
+  fflush (stderr);
+  abort ();
+}
+
 #define checker_prefix "c [checker] "
-#ifndef NDEBUG
+
+#ifdef LOGGING
 #define logging_prefix "c CHECKER "
 #endif
 
@@ -131,7 +175,8 @@ do { \
   void * chunk = calloc (new_bytes, 1); \
   if (!chunk) \
     fatal_error ("out-of-memory resizing '" #NAME "'"); \
-  memcpy (chunk, checker->NAME, old_bytes); \
+  if (old_bytes) \
+    memcpy (chunk, checker->NAME, old_bytes); \
   free (checker->NAME); \
   checker->NAME = chunk; \
 } while (0)
@@ -164,34 +209,6 @@ checker_import (struct checker *checker, int elit)
     }
   return ilit;
 }
-
-/*------------------------------------------------------------------------*/
-
-#ifndef NDEBUG
-
-static unsigned
-SIGN (unsigned lit)
-{
-  return lit & 1;
-}
-
-static unsigned
-INDEX (unsigned lit)
-{
-  return lit >> 1;
-}
-
-static int
-checker_export (unsigned ilit)
-{
-  const unsigned iidx = INDEX (ilit);
-  assert (iidx < (unsigned) INT_MAX - 1);
-  const int eidx = iidx + 1;
-  const int elit = SIGN (ilit) ? -eidx : eidx;
-  return elit;
-}
-
-#endif
 
 /*------------------------------------------------------------------------*/
 
@@ -384,7 +401,7 @@ checker_disconnect_second_watch (unsigned lit, struct clause **p)
 	{
 	  *p = c->next[1];
 #ifndef NDEBUG
-	  c->next[1] = 0;	// See assertion '(*)' below.
+	  c->next[1] = 0;	// See assertion ASSERTION below.
 #endif
 	}
       else
@@ -407,7 +424,7 @@ checker_reconnect_second_watch (unsigned lit, struct clause **watches)
       if (c->literals[0] == lit)
 	{
 	  const unsigned other = c->literals[1];
-	  assert (!c->next[1]);
+	  assert (!c->next[1]);	// ASSERTION
 	  c->next[1] = watches[other];
 	  watches[other] = c;
 	  next = c->next[0];
@@ -700,7 +717,7 @@ checker_internal_delete_clause (struct checker *checker)
 	}
     }
 
-  fatal_error ("clause requested to delete not found");
+  checker_failed (checker, "clause requested to delete not found");
 }
 
 /*------------------------------------------------------------------------*/
@@ -739,7 +756,7 @@ check_clause_implied (struct checker *checker)
     }
 
   if (!failed)
-    fatal_error ("learned clause not implied");
+    checker_failed (checker, "learned clause not implied");
 
   checker_backtrack (checker);
 }
@@ -848,6 +865,8 @@ checker_statistics (struct checker *checker)
 
 /*------------------------------------------------------------------------*/
 
+#ifdef LOGGING
+
 static void
 checker_log_clause (struct checker *checker, const char *type)
 {
@@ -862,6 +881,8 @@ checker_log_clause (struct checker *checker, const char *type)
   fputc ('\n', stdout);
   fflush (stdout);
 }
+
+#endif
 
 /*========================================================================*/
 //      Non-static functions defined by the API are put below.            //
@@ -886,18 +907,18 @@ checker_verbose (struct checker *checker)
   fflush (stdout);
 }
 
-#ifndef NDEBUG
-
 void
 checker_logging (struct checker *checker)
 {
+#ifdef LOGGING
   assert (checker);
   checker->logging = 1;
   printf (logging_prefix "enabling logging mode of internal proof checker\n");
   fflush (stdout);
-}
-
+#else
+  (void) checker;
 #endif
+}
 
 void
 checker_enable_leak_checking (struct checker *checker)
@@ -919,7 +940,12 @@ checker_release (struct checker *checker)
   if (checker->verbose)
     checker_statistics (checker);
   if (!checker->inconsistent && checker->leak_checking && checker->remained)
-    fatal_error ("%zu clauses remain", checker->remained);
+    {
+      if (checker->remained == 1)
+	fatal_error ("exactly one clause remains");
+      else
+	fatal_error ("%zu clauses remain", checker->remained);
+    }
   free (checker->marks);
   free (checker->values);
   free (checker->watches);
@@ -948,7 +974,7 @@ void
 checker_add_original_clause (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
-#ifndef NDEBUG
+#ifdef LOGGING
   if (checker->logging)
     checker_log_clause (checker, "original");
 #endif
@@ -967,7 +993,7 @@ void
 checker_add_learned_clause (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
-#ifndef NDEBUG
+#ifdef LOGGING
   if (checker->logging)
     checker_log_clause (checker, "learned");
 #endif
@@ -987,7 +1013,7 @@ void
 checker_delete_clause (struct checker *checker)
 {
   REQUIRE_NON_ZERO_CHECKER ();
-#ifndef NDEBUG
+#ifdef LOGGING
   if (checker->logging)
     checker_log_clause (checker, "delete");
 #endif

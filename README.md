@@ -14,13 +14,17 @@ for explaining and experimenting with SAT solvers. It is simpler than the
 source code of [CaDiCaL](https://github.com/arminbiere/cadical) and
 particularly [Kissat](https://github.com/arminbiere/kissat), while still
 featuring most important implementation techniques needed to obtain a
-state-of-the-art SAT solver. The current version still lacks preprocessing
-and only supports incremental solving partially.  Thus is also serves as a
-gentle introduction into the code base of
+state-of-the-art SAT solver. However, even though current version has
+bounded variable elimination implemented, which is arguably the most
+important preprocessing and inprocessing procedure, but still lacks other
+preprocessing techniques and only supports incremental solving partially.
+
+The code and its documentation is also meant to serve as a gentle
+introduction into the code base of
 [CaDiCaL](https://github.com/arminbiere/cadical) and
 [Kissat](https://github.com/arminbiere/kissat).
 
-The code allows to switch off individual and more basic features at compile
+It is possible to switch off general and more basic features at compile
 time by using different options to [`configure`](configure). For instance
 completely disabling clause learning can be achieved with `./configure
 --no-learn`.  This not only gives a clean separation of features in the code
@@ -72,7 +76,7 @@ The files used by the build process are the following:
 - [`VERSION`](VERSION)         contains  current version
 - [`configure`](configure)     is the configuration utility
 - [`.config`](.config)         saved last configuration
-- [`makefile.in`](makefile.in) is makefile template used by [`configure`](configure)
+- [`makefile.in`](makefile.in) is a makefile template used by [`configure`](configure)
 - [`makefile`](makefile)       is generated from
                                [`makefile.in`](makefile.in) by [`configure`](configure)
 - [`mkconfig.sh`](mkconfig.sh) generates [`config.c`](config.c) to provide build information
@@ -87,9 +91,9 @@ target will call the shell script [`tatch.sh`](tatch.sh), which performs
 tests on CNFs in the [`cnfs`](cnfs) and [`xnfs`](xnfs) directories.
 See below for information on testing and debugging.
 
-See `./configure -h` for build options and after building the solver
+Refer to `./configure -h` for build options and after building the solver to
 `./satch -h` for run-time options of the solver (solver usage is also shown at
-the top of `main.c`).  For debugging you can use `./configure -g` and
+the top of [`main.c`](`main.c`).  For debugging you can use `./configure -g` and
 optionally then at run-time also enable logging with `./satch -l`.
 
 Testing
@@ -103,12 +107,12 @@ For testing and debugging the following are used:
 - [`catch.c`](catch.c)      implementation of internal proof checker for testing and debugging
 - [`testapi.c`](testapi.c)  simple separate (preliminary) API test suite
 - [`tatch.sh`](tatch.sh)    test suite for CNFs in [`cnfs`](cnfs) and
-                            building and running [`testapi`](testapi)
+                            [`xnfs`](xnfs) and for building and running [`testapi`](testapi)
 - [`testapi`](testapi)      binary built from [`testapi.c`](testapi.c) by
                             [`tatch.sh`](tatch.sh)
 
 Furthermore, as we are having many different combinations of configurations,
-testing them is non-trivial and is achieved with the following:
+testing them is highly non-trivial and is achieved with the following:
 
 - [`gencombi.c`](gencombi.c)         generates configurations ("eat your own dogfood")
 - [`gencombi`](gencombi)             binary built from `gencombi.c` (by `make test`)
@@ -131,4 +135,4 @@ corresponding make goals `test-two-ways`, `test-all-pairs`, and
 `test-all-triples`.
  
 Armin Biere  
-March 2021
+May 2021

@@ -1,6 +1,4 @@
 /*------------------------------------------------------------------------*/
-//   Copyright (c) 2021, Armin Biere, Johannes Kepler University Linz     //
-/*------------------------------------------------------------------------*/
 
 // *INDENT-OFF*
 
@@ -18,12 +16,12 @@ static const char * usage =
 
 // At one point it became more and more tedious to maintain all the
 // feature dependencies in different files ('configure', 'mkconfig.sh',
-// 'features.h', 'gencombi.c' and 'combi.sh') and instead of manually
-// ensuring the consistency we generate them from one global set of files.
+// 'features.h' and 'gencombi.c') and instead of manually ensuring the
+// consistency we generate them from one global set of files.
 //
-//   features.csv  list of options and their usage messages
-//   implied.csv   pairs of options where the first implies the second
-//   clashing.csv  pairs of incompatible options
+//   'features.csv'  list of options and their usage messages
+//   'implied.csv'   pairs of options where the first implies the second
+//   'clashing.csv'  pairs of incompatible options
 //
 // The main reason why we do not use shell scripts for generating feature
 // files is that we have to compute a transitive hull of implied features.
@@ -45,13 +43,18 @@ static const char * usage =
 
 /*------------------------------------------------------------------------*/
 
-#define MAX_FEATURES 32
+#define MAX_FEATURES 64
 
 static char *features[MAX_FEATURES][2];
 static const char *options[MAX_FEATURES];
 static char *defines[MAX_FEATURES];
 static char *names[MAX_FEATURES];
 static int size_features;
+
+static size_t max_feature_len;
+static size_t max_usage_len;
+static const char *max_feature;
+static const char *max_usage;
 
 static int clashing[MAX_FEATURES][3];
 static int size_clashing;
@@ -70,7 +73,17 @@ static FILE *input;
 static char buffer[1 << 8];
 static int size_buffer;
 
+static int directly_implied[MAX_FEATURES][MAX_FEATURES];
 static int transitively_implied[MAX_FEATURES][MAX_FEATURES];
+
+static int roots[MAX_FEATURES];
+static int size_roots;
+
+static int leafs[MAX_FEATURES];
+static int size_leafs;
+
+static int singletons[MAX_FEATURES];
+static int size_singletons;
 
 #define MAX_INVALID (MAX_FEATURES * MAX_FEATURES)
 
@@ -239,14 +252,19 @@ read_feature_usage (char *pair[2])
 }
 
 static char *
-strip_no (const char *option)
+option_to_name (const char *option)
 {
   assert (option[0] == '-');
   assert (option[1] == '-');
   assert (option[2] == 'n');
   assert (option[3] == 'o');
   assert (option[4] == '-');
-  return strdup (option + 5);
+  char *res = malloc (strlen (option) + 1), *q = res, ch;
+  for (const char *p = option + 5; (ch = *p); p++)
+    if (ch != '-')
+      *q++ = ch;
+  *q = 0;
+  return res;
 }
 
 static char *
@@ -257,11 +275,12 @@ option_to_define (const char *option)
   assert (option[2] == 'n');
   assert (option[3] == 'o');
   assert (option[4] == '-');
-  char *res = malloc (strlen (option) + 3), *q = res;
+  char *res = malloc (strlen (option) - 3), *q = res, ch;
   *q++ = 'N';
-  for (const char *p = option + 5; *p; p++)
-    *q++ = toupper (*p);
-  *q++ = 0;
+  for (const char *p = option + 5; (ch = *p); p++)
+    if (ch != '-')
+      *q++ = toupper (ch);
+  *q = 0;
   return res;
 }
 
@@ -282,12 +301,22 @@ read_features (void)
       features[size_features][0] = feature[0];
       features[size_features][1] = feature[1];
       options[size_features] = feature[0];
-      names[size_features] = strip_no (feature[0]);
+      names[size_features] = option_to_name (feature[0]);
       defines[size_features] = option_to_define (feature[0]);
+      const size_t feature_len = strlen (feature[0]);
+      const size_t usage_len = strlen (feature[1]);
+      if (max_feature_len < feature_len)
+	max_feature_len = feature_len, max_feature = feature[0];
+      if (max_usage_len < usage_len)
+	max_usage_len = usage_len, max_usage = feature[1];
       size_features++;
     }
   fclose (input);
   message ("read %d features from '%s'", size_features, path);
+
+  if (max_feature_len + max_usage_len > 74)
+    parse_warning ("maximum feature '%s' and maximum usage '%s' too long",
+		   max_feature, max_usage);
 }
 
 /*------------------------------------------------------------------------*/
@@ -377,6 +406,85 @@ read_pairs (const char *name, int pairs[][3], int *size_ptr)
 }
 
 /*------------------------------------------------------------------------*/
+
+static void
+init_directly_implies (void)
+{
+  for (int i = 0; i < size_implied; i++)
+    directly_implied[implied[i][0]][implied[i][1]] = 1;
+}
+
+static void
+init_roots (void)
+{
+  for (size_t i = 0; i < size_features; i++)
+    {
+      int root = 0;
+      for (size_t j = 0; j < size_features; j++)
+	if (directly_implied[i][j])
+	  {
+	    root = 1;
+	    break;
+	  }
+      for (size_t j = 0; j < size_features; j++)
+	if (directly_implied[j][i])
+	  {
+	    root = 0;
+	    break;
+	  }
+      if (!root)
+	continue;
+      message ("root '%s'", options[i]);
+      roots[size_roots++] = i;
+    }
+  message ("found %d roots", size_roots);
+}
+
+static void
+init_leafs (void)
+{
+  for (size_t i = 0; i < size_features; i++)
+    {
+      int leaf = 0;
+      for (size_t j = 0; j < size_features; j++)
+	if (directly_implied[j][i])
+	  {
+	    leaf = 1;
+	    break;
+	  }
+      for (size_t j = 0; j < size_features; j++)
+	if (directly_implied[i][j])
+	  {
+	    leaf = 0;
+	    break;
+	  }
+      if (!leaf)
+	continue;
+      message ("leaf '%s'", options[i]);
+      leafs[size_leafs++] = i;
+    }
+  message ("found %d leafs", size_leafs);
+}
+
+static void
+init_singletons (void)
+{
+  for (size_t i = 0; i < size_features; i++)
+    {
+      int singleton = 1;
+      for (size_t j = 0; j < size_features; j++)
+	if (directly_implied[i][j] || directly_implied[j][i])
+	  {
+	    singleton = 0;
+	    break;
+	  }
+      if (!singleton)
+	continue;
+      message ("singleton '%s'", options[i]);
+      singletons[size_singletons++] = i;
+    }
+  message ("found %d singletons", size_singletons);
+}
 
 static void
 init_transitively_implies (void)
@@ -495,7 +603,7 @@ check_clashing_not_transitively_implied (void)
 static void
 push_invalid_pair (int i, int j)
 {
-  assert (size_invalid < MAX_SORTED);
+  assert (size_invalid < MAX_INVALID);
   if (strcmp (names[i], names[j]) > 0)
     {
       int tmp = i;
@@ -584,6 +692,20 @@ generate_init_sh (void)
 /*------------------------------------------------------------------------*/
 
 static void
+generate_only_sh (void)
+{
+  const char *name = "only.sh";
+  FILE * file = write_shell (name);
+  fputs ("\n# Handle '--only-<feature>' options.\n\n", file);
+  for (int i = 0; i < size_features; i++)
+    {
+    }
+  close_file (file, name);
+}
+
+/*------------------------------------------------------------------------*/
+
+static void
 generate_parse_sh (void)
 {
   const char *name = "parse.sh";
@@ -646,8 +768,10 @@ generate_usage_sh (void)
   FILE *file = write_shell (name);
   fputs ("\n# Print option usage to disable features.\n\n", file);
   fputs ("cat<<EOF\n", file);
+  char fmt[16];
+  sprintf (fmt, "%%-%zus %%s\n", max_feature_len);
   for (int i = 0; i < size_features; i++)
-    fprintf (file, "%-17s %s\n", features[i][0], features[i][1]);
+    fprintf (file, fmt, features[i][0], features[i][1]);
   fputs ("EOF\n", file);
   close_file (file, name);
 }
@@ -815,6 +939,7 @@ struct named_generator
 
 static struct named_generator generators[] = {
   {"init.sh", generate_init_sh},
+  {"only.sh", generate_only_sh},
   {"parse.sh", generate_parse_sh},
   {"usage.sh", generate_usage_sh},
   {"check.sh", generate_check_sh},
@@ -908,9 +1033,16 @@ main (int argc, char **argv)
   read_pairs ("implied.csv", implied, &size_implied);
   read_pairs ("clashing.csv", clashing, &size_clashing);
 
+  init_directly_implies ();
+
+  init_roots ();
+  init_leafs ();
+  init_singletons ();
+
   init_transitively_implies ();
   check_transitive_impliedness ();
   transitive_hull ();
+
   check_cyclic_dependencies ();
   check_clashing_not_transitively_implied ();
   sort_invalid_feature_pairs ();

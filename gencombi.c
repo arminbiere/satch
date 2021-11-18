@@ -1,6 +1,4 @@
 /*------------------------------------------------------------------------*/
-//   Copyright (c) 2021, Armin Biere, Johannes Kepler University Linz     //
-/*------------------------------------------------------------------------*/
 
 // *INDENT-OFF*
 
@@ -47,7 +45,13 @@ static const char *options[] = {
 
   // Basic options ordered with most likely failing compilation first.
 
-  "--pedantic", "--debug", "--check", "--symbols",
+  "--pedantic", "--debug", "--check", "--symbols", "--logging",
+
+  // Two options which are only enabled for '--debug'.
+
+  "--no-check",
+#define LAST_HARD_CODED_OPTION "--no-logging"
+  LAST_HARD_CODED_OPTION,
 
   // Options to disable features sorted alphabetically.  During
   // initialization 'features' is set to point to the first.
@@ -63,7 +67,10 @@ static const char *options[] = {
 static const char *incompatible[] = {
 
   "--check", "--debug",
+  "--check", "--no-check",
+  "--debug", "--logging",
   "--debug", "--symbols",
+  "--logging", "--no-logging",
 
 #include "features/invalid.h"
 
@@ -71,9 +78,19 @@ static const char *incompatible[] = {
 
 };
 
+// First option requires second.
+
+static const char *requires[] = {
+
+  "--no-check", "--debug",
+  "--no-logging", "--debug",
+  0
+};
+
 static const char *abbrevs[] = {
   "--check", "-c",
   "--debug", "-g",
+  "--logging", "-l",
   "--pedantic", "-p",
   "--symbols", "-s",
   0
@@ -104,6 +121,9 @@ static const char *weak;	// Option for weaker check.
 static int k = -1;
 
 /*------------------------------------------------------------------------*/
+
+static void die (const char *fmt, ...) __attribute__((format (printf, 1, 2)));
+static void msg (const char *fmt, ...) __attribute__((format (printf, 1, 2)));
 
 static void
 die (const char *fmt, ...)
@@ -145,16 +165,6 @@ allocate (size_t bytes)
   return res;
 }
 
-static void *
-callocate (size_t bytes)
-{
-  void *res = malloc (bytes);
-  if (bytes && !res)
-    out_of_memory (bytes);
-  memset (res, 0, bytes);
-  return res;
-}
-
 /*------------------------------------------------------------------------*/
 
 static const char *
@@ -171,19 +181,13 @@ shorten (const char *s)
 static int noptions;		// Number of options.
 
 static char **valid;		// Indicates valid option pairs.
+static char **needs;		// Indicate required option pairs.
+static int *needed;		// At least once.
 
-static int found_leader;
-static int leader[2];		// First pair which can be combined.
-
-static char *constrained;	// Counts how often an option is constrained.
-
-static int nindependent;
-static char **independent;	// Indicates independent option pairs.
-
-// Return non-zero if the given option pair is invalid / incompatible.
+// Return non-zero if the given option pair is incompatible.
 
 static int
-filter (const char *a, const char *b)
+filter_incompatible (const char *a, const char *b)
 {
   for (const char **pair = incompatible; *pair; pair += 2)
     {
@@ -195,95 +199,152 @@ filter (const char *a, const char *b)
   return 0;
 }
 
-// Initialize the 'valid' table (using 'filter' and 'incompatible').
+//  Return non-zero if the given option pair is a required pair.
 
-static void
-init_valid (void)
+static int
+filter_requires (const char *a, const char *b)
 {
-  for (const char **p = options; *p; p++)
-    noptions++;
-
-  valid = allocate (noptions * sizeof *valid);
-  constrained = callocate (noptions * sizeof *constrained);
-
-  for (int p = 0; p < noptions; p++)
-    {
-      valid[p] = allocate (noptions * sizeof *valid[p]);
-
-      for (int q = 0; q < noptions; q++)
-	{
-	  int filtered = filter (options[p], options[q]);
-	  if (filtered)
-	    {
-	      valid[p][q] = 0;
-	      if (p < q)
-		{
-		  constrained[p]++;
-		  constrained[q]++;
-		}
-	      continue;
-	    }
-	  valid[p][q] = 1;
-	  if (found_leader)
-	    continue;
-	  leader[0] = p, leader[1] = q;
-	  found_leader = 1;
-	  msg ("leading pair '%s,%s'", options[p], options[q]);
-	}
-    }
-
-  independent = allocate (noptions * sizeof *independent);
-
-  for (int p = 0; p < noptions; p++)
-    {
-      independent[p] = callocate (noptions * sizeof *independent[p]);
-
-      if (constrained[p] != 1)
-	continue;
-
-      for (int q = p + 1; q < noptions; q++)
-	{
-	  if (constrained[q] != 1)
-	    continue;
-	  if (valid[p][q])
-	    continue;
-	  msg ("independent pair '%s,%s'", options[p], options[q]);
-	  independent[p][q] = 1;
-	  nindependent++;
-	  break;
-	}
-    }
-
-  msg ("found in total %d independent pairs", nindependent);
+  for (const char **pair = requires; *pair; pair += 2)
+    if (!strcmp (a, pair[0]) && !strcmp (b, pair[1]))
+      return 1;
+  return 0;
 }
 
-// Sets 'features' and does some sanity checking.
+// Initialize 'noptions'.
 
 static void
 init_options (void)
 {
+  for (const char **p = options; *p; p++)
+    noptions++;
+  msg ("found %d options", noptions);
+}
+
+// Initialize the 'needs' 'needed' tables (using 'filter_requires').
+
+static void
+init_needs (void)
+{
+  needs = allocate (noptions * sizeof *needs);
+  needed = allocate (noptions * sizeof *needed);
+  int count = 0;
+
+  for (int p = 0; p < noptions; p++)
+    {
+      needs[p] = allocate (noptions * sizeof *needs[p]);
+      needed[p] = 0;
+      for (int q = 0; q < noptions; q++)
+	{
+	  int filtered = filter_requires (options[p], options[q]);
+	  needs[p][q] = filtered;
+	  needed[p] += filtered;
+	}
+      if (needed[p] > 1)
+	die ("option '%s' with %d required options", options[p], needed[p]);
+      else if (needed[p])
+	count++;
+    }
+  if (count)
+    msg ("found %u options which require other options", count);
+}
+
+// Initialize the 'valid' table (using 'filter_incompatible').
+
+static void
+init_valid (void)
+{
+  valid = allocate (noptions * sizeof *valid);
+  int count = 0;
+  for (int p = 0; p < noptions; p++)
+    {
+      valid[p] = allocate (noptions * sizeof *valid[p]);
+      for (int q = 0; q < noptions; q++)
+	if (!(valid[p][q] = !filter_incompatible (options[p], options[q])))
+	  count++;
+    }
+
+  msg ("found %u incompatible option pairs", count);
+
+  int changed;
+  int round = 0;
+  count = 0;
+
+  do
+    {
+      round++;
+      changed = 0;
+      for (int p = 0; p < noptions; p++)
+	{
+	  if (!needed[p])
+	    continue;
+	  for (int q = 0; q < noptions; q++)
+	    if (needs[p][q])
+	      {
+		for (int r = 0; r < noptions; r++)
+		  if (p != r && !valid[q][r] && valid[p][r])
+		    {
+		      msg ("forced incompatible pair \"%s\", \"%s\"",
+			   options[p], options[r]);
+		      valid[p][r] = 0;
+		      valid[r][p] = 0;
+		      changed = 1;
+		      count++;
+		    }
+	      }
+	}
+    }
+  while (changed);
+
+  msg ("forced %d incompatible pairs due to requirements in %d rounds",
+       count, round);
+}
+
+// Sanity checking for 'options'.
+
+static void
+check_options (void)
+{
   const char **features = 0;
 
   for (const char **p = options, *o; !features && (o = *p); p++)
-    if (o[0] == '-' && o[1] == '-' && o[2] == 'n' && o[3] == 'o'
-	&& o[4] == '-')
-      features = p;
+    if (!strcmp (o, LAST_HARD_CODED_OPTION))
+      features = p + 1;
 
   assert (features);
 
   for (const char **p = features + 1; *p; p++)
-    assert (strcmp (p[-1], *p) < 0);
+    if (strcmp (p[-1], *p) > 0)
+      die ("option '%s' before '%s'", p[-1], p[0]);
 }
 
+// Sanity checking for 'incompatible'.
+
 static void
-init_incompatible (void)
+check_incompatible (void)
 {
   for (const char **p = incompatible; *p; p += 2)
     {
       assert (p[1]);
-      assert (strcmp (p[0], p[1]) < 0);
-      if (incompatible < p)
-	assert (strcmp (p[-2], p[0]) <= 0);
+      if (strcmp (p[0], p[1]) >= 0)
+	die ("unsorted incompatible pair '\"%s\", \"%s\"'", p[0], p[1]);
+
+      if (incompatible < p && strcmp (p[-2], p[0]) > 0)
+	die ("incompatible pair '\"%s\", \"%s\"' before '\"%s\", \"%s\"'",
+	     p[-2], p[-1], p[0], p[1]);
+    }
+}
+
+// Sanity checking for 'requires'.
+
+static void
+check_requires (void)
+{
+  for (const char **p = requires; *p; p += 2)
+    {
+      assert (p[1]);
+      if (requires < p && strcmp (p[-2], p[0]) > 0)
+	die ("requires pair '%s;%s' before '%s;%s'",
+	     p[-2], p[-1], p[0], p[1]);
     }
 }
 
@@ -294,11 +355,11 @@ reset_valid (void)
     free (valid[p]);
   free (valid);
 
-  free (constrained);
-
   for (int p = 0; p < noptions; p++)
-    free (independent[p]);
-  free (independent);
+    free (needs[p]);
+  free (needs);
+
+  free (needed);
 }
 
 /*========================================================================*/
@@ -325,9 +386,22 @@ generate (int current, int select)
   else if (selected == select)
     {
       int config_valid = 1;
+
       for (int i = 0; config_valid && i + 1 < selected; i++)
 	for (int j = i + 1; config_valid && j < selected; j++)
 	  config_valid = valid[config[i]][config[j]];
+
+      if (config_valid)
+	{
+	  for (int i = 0; config_valid && i < selected; i++)
+	    if (needed[config[i]])
+	      {
+		config_valid = 0;
+		for (int j = 0; !config_valid && j < selected; j++)
+		  if (i != j && needs[config[i]][config[j]])
+		    config_valid = 1;
+	      }
+	}
 
       if (invalid && config_valid)
 	return;
@@ -374,13 +448,6 @@ literal (struct satch *solver, int lit)
     }
   else
     satch_add (solver, lit);
-}
-
-static void
-unary (struct satch *solver, int a)
-{
-  literal (solver, a);
-  literal (solver, 0);
 }
 
 static void
@@ -533,12 +600,6 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
   int nvars = 0;
   int nclauses = 0;
 
-  if (found_leader)
-    nclauses += 2;
-
-  if (nindependent)
-    nclauses += 2 * nindependent;
-
   int **option = frame->option;
 
   for (int i = 0; i < k; i++)
@@ -587,15 +648,16 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	{
 	  if (dimacs)
 	    for (int p = 0; p < noptions; p++)
-	      printf ("c option[%d,%d] = %d\n", i, p, option[i][p]);
+	      printf ("c option[%d,%d] %d %s\n",
+		      i, p, option[i][p], options[p]);
 
 	  for (int p = 0; p + 1 < noptions; p++)
 	    for (int q = p + 1; q < noptions; q++)
 	      if (valid[p][q])
 		{
 		  if (dimacs)
-		    printf ("c pair[%d,%d,%d] = %d\n", i, p, q,
-			    pair[i][p][q]);
+		    printf ("c pair[%d,%d,%d] %d %s %s\n", i, p, q,
+			    pair[i][p][q], options[p], options[q]);
 
 		  nclauses += 3;
 
@@ -608,6 +670,10 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 		}
 	      else
 		nclauses++;
+
+	  for (int p = 0; p < noptions; p++)
+	    if (needed[p])
+	      nclauses++;
 	}
 
       if (dimacs)
@@ -617,54 +683,34 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	   k, nvars, nclauses);
     }
 
-  // Trivial symmetry breaking by forcing first valid pair to be enabled in
-  // first configuration.  We put this symmetry breaking first since it
-  // involves units, which simplifies the encoded formula on-the-fly.
+  // We use symmetry breaking and sort options globally.
 
-  if (found_leader)
-    {
-      unary (solver, option[0][leader[0]]);
-      unary (solver, option[0][leader[1]]);
-    }
-
-  // Second simple to encode form of symmetry breaking uses independent
-  // pairs of incompatible options which allows to order the options within
-  // this pair arbitrarily.
-
-  if (nindependent)
-    {
-      for (int p = 0; p + 1 < noptions; p++)
-	for (int q = p + 1; q < noptions; q++)
-	  if (independent[p][q])
-	    unary (solver, option[0][p]), unary (solver, -option[0][q]);
-    }
-
-  // Third form of symmetry breaking sorts the options globally.  Our
-  // experiments however did not give any benefit in using this restriction,
-  // but it does produce nicer (sorted) configuration lists.
+  // Our experiments however did not give any benefit in using this
+  // restriction, but it does produce nicer (sorted) configuration lists.
 
   if (!unsorted)
     for (int i = 1; i < k; i++)
       {
+	if (dimacs)
+	  printf ("c sorting %d\n", i);
+
 	int **sorted = frame->sorted;
 
-	binary (solver, option[i - 1][0], -option[i][0]),
-	  binary (solver, option[i - 1][0], sorted[i][1]),
-	  binary (solver, -option[i][0], sorted[i][1]);
+	binary (solver, option[i - 1][0], -option[i][0]);
+	binary (solver, option[i - 1][0], sorted[i][1]);
+	binary (solver, -option[i][0], sorted[i][1]);
 
 	for (int p = 1; p + 1 < noptions; p++)
-	  ternary (solver, -sorted[i][p], option[i - 1][p], -option[i][p]),
+	  {
+	    ternary (solver, -sorted[i][p], option[i - 1][p], -option[i][p]);
 	    ternary (solver, -sorted[i][p], option[i - 1][p],
-		     sorted[i][p + 1]), ternary (solver, -sorted[i][p],
-						 -option[i][p],
-						 sorted[i][p + 1]);
+		     sorted[i][p + 1]);
+	    ternary (solver, -sorted[i][p], -option[i][p], sorted[i][p + 1]);
+	  }
 
 	binary (solver, -sorted[i][noptions - 1],
-		option[i - 1][noptions - 1]), binary (solver,
-						      -sorted[i][noptions -
-								 1],
-						      -option[i][noptions -
-								 1]);
+		option[i - 1][noptions - 1]);
+	binary (solver, -sorted[i][noptions - 1], -option[i][noptions - 1]);
       }
 
   // First add all the pairs 'pair[i][p][q] = option[i][p] & option[i][q]'
@@ -673,6 +719,8 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 
   for (int i = 0; i < k; i++)
     {
+      if (dimacs)
+	printf ("c pairs[%d]\n", i);
       for (int p = 0; p + 1 < noptions; p++)
 	for (int q = p + 1; q < noptions; q++)
 	  if (valid[p][q])
@@ -685,8 +733,28 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	    binary (solver, -option[i][p], -option[i][q]);
     }
 
+  // Add required constraints.
+
+  for (int i = 0; i < k; i++)
+    {
+      if (dimacs)
+	printf ("c required[%d]\n", i);
+      for (int p = 0; p < noptions; p++)
+	if (needed[p])
+	  {
+	    literal (solver, -option[i][p]);
+	    for (int q = 0; q < noptions; q++)
+	      if (p != q && needs[p][q])
+		literal (solver, option[i][q]);
+	    literal (solver, 0);
+	  }
+    }
+
   // Now every pair should occur at least once (which also makes sure that
   // every option is selected at least once).
+
+  if (dimacs)
+    printf ("c positive occurrence of all pairs\n");
 
   for (int p = 0; p + 1 < noptions; p++)
     for (int q = p + 1; q < noptions; q++)
@@ -698,6 +766,9 @@ encode (int k)			// Thus 'encode' sees only local 'k'!
 	}
 
   // Finally every pair should not occur at least once.
+
+  if (dimacs)
+    printf ("c negative occurrence of all pairs\n");
 
   if (!weak)
     for (int p = 0; p + 1 < noptions; p++)
@@ -853,7 +924,7 @@ main (int argc, char **argv)
     die ("dimacs encoding for 'k=%d' does not make sense", k);
 
   if (invalid && !all)
-    die ("can only use '%s' with '%s'", invalid, all);
+    die ("can only use '%s' with '--all'", invalid);
 
   if (unsorted && all)
     die ("can not use '%s' with '%s'", unsorted, all);
@@ -861,8 +932,12 @@ main (int argc, char **argv)
   if (weak && all)
     die ("can not use '%s' with '%s'", weak, all);
 
+  check_options ();
+  check_incompatible ();
+  check_requires ();
+
   init_options ();
-  init_incompatible ();
+  init_needs ();
   init_valid ();
 
   if (all)
@@ -914,6 +989,7 @@ main (int argc, char **argv)
 	  int res = solve (m);
 	  if (res == SATISFIABLE)
 	    {
+	      lb = 2;
 	      ub = m;
 	      update_limits (ub);
 	    }

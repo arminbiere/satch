@@ -5,23 +5,35 @@
 #if defined(NBLOCK) && !defined(NVIRTUAL)
 #define NVIRTUAL
 #endif
-#if defined(NBUMP) && !defined(NREASONS)
-#define NREASONS
+#if defined(NBUMP) && !defined(NBUMPREASONS)
+#define NBUMPREASONS
 #endif
 #if defined(NBUMP) && !defined(NREUSE)
 #define NREUSE
 #endif
-#if defined(NBUMP) && !defined(NRSORT)
-#define NRSORT
+#if defined(NBUMP) && !defined(NREUSESTABLE)
+#define NREUSESTABLE
 #endif
-#if defined(NBUMP) && !defined(NSORT)
-#define NSORT
+#if defined(NBUMP) && !defined(NSORTANALYZED)
+#define NSORTANALYZED
 #endif
 #if defined(NBUMP) && !defined(NVMTF)
 #define NVMTF
 #endif
 #if defined(NBUMP) && !defined(NVSIDS)
 #define NVSIDS
+#endif
+#if defined(NELIMINATION) && !defined(NELIMINATIONLIMITS)
+#define NELIMINATIONLIMITS
+#endif
+#if defined(NELIMINATION) && !defined(NSTRENGTHENING)
+#define NSTRENGTHENING
+#endif
+#if defined(NELIMINATION) && !defined(NSUBSUMPTION)
+#define NSUBSUMPTION
+#endif
+#if defined(NELIMINATION) && !defined(NSUBSUMPTIONLIMITS)
+#define NSUBSUMPTIONLIMITS
 #endif
 #if defined(NGLUE) && !defined(NTIER1)
 #define NTIER1
@@ -31,6 +43,9 @@
 #endif
 #if defined(NLEARN) && !defined(NGLUE)
 #define NGLUE
+#endif
+#if defined(NLEARN) && !defined(NINPROCESSING)
+#define NINPROCESSING
 #endif
 #if defined(NLEARN) && !defined(NMINIMIZE)
 #define NMINIMIZE
@@ -44,6 +59,15 @@
 #if defined(NLEARN) && !defined(NREUSE)
 #define NREUSE
 #endif
+#if defined(NLEARN) && !defined(NREUSESTABLE)
+#define NREUSESTABLE
+#endif
+#if defined(NLEARN) && !defined(NSHRINK)
+#define NSHRINK
+#endif
+#if defined(NLEARN) && !defined(NSORTDEDUCED)
+#define NSORTDEDUCED
+#endif
 #if defined(NLEARN) && !defined(NTIER1)
 #define NTIER1
 #endif
@@ -52,6 +76,15 @@
 #endif
 #if defined(NLEARN) && !defined(NUSED)
 #define NUSED
+#endif
+#if defined(NLIMITS) && !defined(NELIMINATIONLIMITS)
+#define NELIMINATIONLIMITS
+#endif
+#if defined(NLIMITS) && !defined(NSUBSUMPTIONLIMITS)
+#define NSUBSUMPTIONLIMITS
+#endif
+#if defined(NMINIMIZE) && !defined(NSHRINK)
+#define NSHRINK
 #endif
 #if defined(NREDUCE) && !defined(NGLUE)
 #define NGLUE
@@ -74,6 +107,12 @@
 #if defined(NRESTART) && !defined(NREUSE)
 #define NREUSE
 #endif
+#if defined(NRESTART) && !defined(NREUSESTABLE)
+#define NREUSESTABLE
+#endif
+#if defined(NREUSE) && !defined(NREUSESTABLE)
+#define NREUSESTABLE
+#endif
 #if defined(NSAVE) && !defined(NBEST)
 #define NBEST
 #endif
@@ -83,14 +122,38 @@
 #if defined(NSAVE) && !defined(NREPHASE)
 #define NREPHASE
 #endif
-#if defined(NSORT) && !defined(NRSORT)
-#define NRSORT
+#if defined(NSIMPLIFICATION) && !defined(NELIMINATION)
+#define NELIMINATION
+#endif
+#if defined(NSIMPLIFICATION) && !defined(NELIMINATIONLIMITS)
+#define NELIMINATIONLIMITS
+#endif
+#if defined(NSIMPLIFICATION) && !defined(NINPROCESSING)
+#define NINPROCESSING
+#endif
+#if defined(NSIMPLIFICATION) && !defined(NSTRENGTHENING)
+#define NSTRENGTHENING
+#endif
+#if defined(NSIMPLIFICATION) && !defined(NSUBSUMPTION)
+#define NSUBSUMPTION
+#endif
+#if defined(NSIMPLIFICATION) && !defined(NSUBSUMPTIONLIMITS)
+#define NSUBSUMPTIONLIMITS
+#endif
+#if defined(NSORTDEDUCED) && !defined(NSHRINK)
+#define NSHRINK
 #endif
 #if defined(NSTABLE) && !defined(NBEST)
 #define NBEST
 #endif
 #if defined(NSTABLE) && !defined(NTARGET)
 #define NTARGET
+#endif
+#if defined(NSUBSUMPTION) && !defined(NSTRENGTHENING)
+#define NSTRENGTHENING
+#endif
+#if defined(NSUBSUMPTION) && !defined(NSUBSUMPTIONLIMITS)
+#define NSUBSUMPTIONLIMITS
 #endif
 #if defined(NTARGET) && !defined(NBEST)
 #define NBEST
@@ -101,9 +164,30 @@
 #if defined(NUSED) && !defined(NTIER2)
 #define NTIER2
 #endif
-#if defined(NVMTF) && !defined(NRSORT)
-#define NRSORT
+#if defined(NVMTF) && !defined(NSORTANALYZED)
+#define NSORTANALYZED
 #endif
-#if defined(NVMTF) && !defined(NSORT)
-#define NSORT
+#if defined(NWATCHES) && !defined(NBLOCK)
+#define NBLOCK
+#endif
+#if defined(NWATCHES) && !defined(NCACHE)
+#define NCACHE
+#endif
+#if defined(NWATCHES) && !defined(NELIMINATION)
+#define NELIMINATION
+#endif
+#if defined(NWATCHES) && !defined(NELIMINATIONLIMITS)
+#define NELIMINATIONLIMITS
+#endif
+#if defined(NWATCHES) && !defined(NSTRENGTHENING)
+#define NSTRENGTHENING
+#endif
+#if defined(NWATCHES) && !defined(NSUBSUMPTION)
+#define NSUBSUMPTION
+#endif
+#if defined(NWATCHES) && !defined(NSUBSUMPTIONLIMITS)
+#define NSUBSUMPTIONLIMITS
+#endif
+#if defined(NWATCHES) && !defined(NVIRTUAL)
+#define NVIRTUAL
 #endif

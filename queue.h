@@ -33,7 +33,7 @@ struct int_queue
 
 // Enqueuing an elements amounts to push it on the stack and adapt the
 // 'head' pointer in case the stack has to be enlarged (which we do here
-// explicitly but borrowing the 'ENLARGE_STACK' operation from stacks.
+// explicitly but borrowing the 'ENLARGE_STACK' operation from stacks).
 
 #define ENQUEUE(Q,E) \
 do { \
@@ -49,8 +49,8 @@ do { \
 /*------------------------------------------------------------------------*/
 
 // This is too simplistic in general, since we will allocate as much stack
-// memory as there are 'ENQUEUE' operations.  If for instance the queue size
-// is twice as big as the stack size, we might want to shrink everything.
+// memory as there are 'ENQUEUE' operations.  If for instance the stack size
+// is twice as big as the queue size, we might want to shrink everything.
 
 #define DEQUEUE(Q) \
   (assert (!EMPTY_QUEUE (Q)), *(Q).head++)

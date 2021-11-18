@@ -5,23 +5,35 @@
 #if defined(NBLOCK) && defined(NVIRTUAL)
 #error "'NBLOCK' implies 'NVIRTUAL' (the latter should not be defined)"
 #endif
-#if defined(NBUMP) && defined(NREASONS)
-#error "'NBUMP' implies 'NREASONS' (the latter should not be defined)"
+#if defined(NBUMP) && defined(NBUMPREASONS)
+#error "'NBUMP' implies 'NBUMPREASONS' (the latter should not be defined)"
 #endif
 #if defined(NBUMP) && defined(NREUSE)
 #error "'NBUMP' implies 'NREUSE' (the latter should not be defined)"
 #endif
-#if defined(NBUMP) && defined(NRSORT)
-#error "'NBUMP' implies 'NRSORT' (the latter should not be defined)"
+#if defined(NBUMP) && defined(NREUSESTABLE)
+#error "'NBUMP' implies 'NREUSESTABLE' (the latter should not be defined)"
 #endif
-#if defined(NBUMP) && defined(NSORT)
-#error "'NBUMP' implies 'NSORT' (the latter should not be defined)"
+#if defined(NBUMP) && defined(NSORTANALYZED)
+#error "'NBUMP' implies 'NSORTANALYZED' (the latter should not be defined)"
 #endif
 #if defined(NBUMP) && defined(NVMTF)
 #error "'NBUMP' implies 'NVMTF' (the latter should not be defined)"
 #endif
 #if defined(NBUMP) && defined(NVSIDS)
 #error "'NBUMP' implies 'NVSIDS' (the latter should not be defined)"
+#endif
+#if defined(NELIMINATION) && defined(NELIMINATIONLIMITS)
+#error "'NELIMINATION' implies 'NELIMINATIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NELIMINATION) && defined(NSTRENGTHENING)
+#error "'NELIMINATION' implies 'NSTRENGTHENING' (the latter should not be defined)"
+#endif
+#if defined(NELIMINATION) && defined(NSUBSUMPTION)
+#error "'NELIMINATION' implies 'NSUBSUMPTION' (the latter should not be defined)"
+#endif
+#if defined(NELIMINATION) && defined(NSUBSUMPTIONLIMITS)
+#error "'NELIMINATION' implies 'NSUBSUMPTIONLIMITS' (the latter should not be defined)"
 #endif
 #if defined(NGLUE) && defined(NTIER1)
 #error "'NGLUE' implies 'NTIER1' (the latter should not be defined)"
@@ -31,6 +43,9 @@
 #endif
 #if defined(NLEARN) && defined(NGLUE)
 #error "'NLEARN' implies 'NGLUE' (the latter should not be defined)"
+#endif
+#if defined(NLEARN) && defined(NINPROCESSING)
+#error "'NLEARN' implies 'NINPROCESSING' (the latter should not be defined)"
 #endif
 #if defined(NLEARN) && defined(NMINIMIZE)
 #error "'NLEARN' implies 'NMINIMIZE' (the latter should not be defined)"
@@ -44,6 +59,15 @@
 #if defined(NLEARN) && defined(NREUSE)
 #error "'NLEARN' implies 'NREUSE' (the latter should not be defined)"
 #endif
+#if defined(NLEARN) && defined(NREUSESTABLE)
+#error "'NLEARN' implies 'NREUSESTABLE' (the latter should not be defined)"
+#endif
+#if defined(NLEARN) && defined(NSHRINK)
+#error "'NLEARN' implies 'NSHRINK' (the latter should not be defined)"
+#endif
+#if defined(NLEARN) && defined(NSORTDEDUCED)
+#error "'NLEARN' implies 'NSORTDEDUCED' (the latter should not be defined)"
+#endif
 #if defined(NLEARN) && defined(NTIER1)
 #error "'NLEARN' implies 'NTIER1' (the latter should not be defined)"
 #endif
@@ -52,6 +76,15 @@
 #endif
 #if defined(NLEARN) && defined(NUSED)
 #error "'NLEARN' implies 'NUSED' (the latter should not be defined)"
+#endif
+#if defined(NLIMITS) && defined(NELIMINATIONLIMITS)
+#error "'NLIMITS' implies 'NELIMINATIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NLIMITS) && defined(NSUBSUMPTIONLIMITS)
+#error "'NLIMITS' implies 'NSUBSUMPTIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NMINIMIZE) && defined(NSHRINK)
+#error "'NMINIMIZE' implies 'NSHRINK' (the latter should not be defined)"
 #endif
 #if defined(NREDUCE) && defined(NGLUE)
 #error "'NREDUCE' implies 'NGLUE' (the latter should not be defined)"
@@ -74,6 +107,12 @@
 #if defined(NRESTART) && defined(NREUSE)
 #error "'NRESTART' implies 'NREUSE' (the latter should not be defined)"
 #endif
+#if defined(NRESTART) && defined(NREUSESTABLE)
+#error "'NRESTART' implies 'NREUSESTABLE' (the latter should not be defined)"
+#endif
+#if defined(NREUSE) && defined(NREUSESTABLE)
+#error "'NREUSE' implies 'NREUSESTABLE' (the latter should not be defined)"
+#endif
 #if defined(NSAVE) && defined(NBEST)
 #error "'NSAVE' implies 'NBEST' (the latter should not be defined)"
 #endif
@@ -83,14 +122,38 @@
 #if defined(NSAVE) && defined(NREPHASE)
 #error "'NSAVE' implies 'NREPHASE' (the latter should not be defined)"
 #endif
-#if defined(NSORT) && defined(NRSORT)
-#error "'NSORT' implies 'NRSORT' (the latter should not be defined)"
+#if defined(NSIMPLIFICATION) && defined(NELIMINATION)
+#error "'NSIMPLIFICATION' implies 'NELIMINATION' (the latter should not be defined)"
+#endif
+#if defined(NSIMPLIFICATION) && defined(NELIMINATIONLIMITS)
+#error "'NSIMPLIFICATION' implies 'NELIMINATIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NSIMPLIFICATION) && defined(NINPROCESSING)
+#error "'NSIMPLIFICATION' implies 'NINPROCESSING' (the latter should not be defined)"
+#endif
+#if defined(NSIMPLIFICATION) && defined(NSTRENGTHENING)
+#error "'NSIMPLIFICATION' implies 'NSTRENGTHENING' (the latter should not be defined)"
+#endif
+#if defined(NSIMPLIFICATION) && defined(NSUBSUMPTION)
+#error "'NSIMPLIFICATION' implies 'NSUBSUMPTION' (the latter should not be defined)"
+#endif
+#if defined(NSIMPLIFICATION) && defined(NSUBSUMPTIONLIMITS)
+#error "'NSIMPLIFICATION' implies 'NSUBSUMPTIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NSORTDEDUCED) && defined(NSHRINK)
+#error "'NSORTDEDUCED' implies 'NSHRINK' (the latter should not be defined)"
 #endif
 #if defined(NSTABLE) && defined(NBEST)
 #error "'NSTABLE' implies 'NBEST' (the latter should not be defined)"
 #endif
 #if defined(NSTABLE) && defined(NTARGET)
 #error "'NSTABLE' implies 'NTARGET' (the latter should not be defined)"
+#endif
+#if defined(NSUBSUMPTION) && defined(NSTRENGTHENING)
+#error "'NSUBSUMPTION' implies 'NSTRENGTHENING' (the latter should not be defined)"
+#endif
+#if defined(NSUBSUMPTION) && defined(NSUBSUMPTIONLIMITS)
+#error "'NSUBSUMPTION' implies 'NSUBSUMPTIONLIMITS' (the latter should not be defined)"
 #endif
 #if defined(NTARGET) && defined(NBEST)
 #error "'NTARGET' implies 'NBEST' (the latter should not be defined)"
@@ -101,11 +164,32 @@
 #if defined(NUSED) && defined(NTIER2)
 #error "'NUSED' implies 'NTIER2' (the latter should not be defined)"
 #endif
-#if defined(NVMTF) && defined(NRSORT)
-#error "'NVMTF' implies 'NRSORT' (the latter should not be defined)"
+#if defined(NVMTF) && defined(NSORTANALYZED)
+#error "'NVMTF' implies 'NSORTANALYZED' (the latter should not be defined)"
 #endif
-#if defined(NVMTF) && defined(NSORT)
-#error "'NVMTF' implies 'NSORT' (the latter should not be defined)"
+#if defined(NWATCHES) && defined(NBLOCK)
+#error "'NWATCHES' implies 'NBLOCK' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NCACHE)
+#error "'NWATCHES' implies 'NCACHE' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NELIMINATION)
+#error "'NWATCHES' implies 'NELIMINATION' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NELIMINATIONLIMITS)
+#error "'NWATCHES' implies 'NELIMINATIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NSTRENGTHENING)
+#error "'NWATCHES' implies 'NSTRENGTHENING' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NSUBSUMPTION)
+#error "'NWATCHES' implies 'NSUBSUMPTION' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NSUBSUMPTIONLIMITS)
+#error "'NWATCHES' implies 'NSUBSUMPTIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NWATCHES) && defined(NVIRTUAL)
+#error "'NWATCHES' implies 'NVIRTUAL' (the latter should not be defined)"
 #endif
 
 // Check clashing disabled features.

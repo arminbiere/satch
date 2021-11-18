@@ -6,24 +6,25 @@ usage: configure [ <option> ... ]
 
 where '<option>' is one of the following:
 
--h | --help       print this command line option summary
--g | --debug      include symbol table, logging and internal checking code
-
--c | --check      include internal checking code (forced by '-g')
--s | --symbols    include symbol table (forced by '-g' but useful without)
--p | --pedantic   pedantic compilation ('-Werror -std=c99 --pedantic')
--d | --diagnose   print options for diagnosis (with compiler pragma messages)
+-h | --help             print this command line option summary
+-g | --debug            include symbol table, logging and checking code
+                       
+-c | --check            include internal checking code (forced by '-g')
+-l | --logging          include internal logging code (forced by '-g')
+-s | --symbols          include symbol table (forced by '-g' useful without)
+-p | --pedantic         pedantic compilation ('-Werror -std=c99 --pedantic')
+-d | --diagnose         print compiler options (compiler pragma messages)
+                       
+--no-check              disable checking code (for '-g')
+--no-logging            disable logging code (for '-g')
                  
+-f... | -static         passed to compiler (like '-fsanitize=address')
+
 EOF
 
 # The main feature options are in the following generated file.
 
 . features/usage.sh
-
-cat <<EOF
-
--f... | -static   passed to compiler directly (like '-fsanitize=address')
-EOF
 }
 
 ############################################################################
@@ -47,10 +48,11 @@ die () {
 # Basic options.
 
 debug=no
-diagnose=no
-check=no
+check=undefined
+logging=undefined
 symbols=no
 pedantic=no
+diagnose=no
 
 # Options to disable features (see also 'OPTIONS.md').
 
@@ -63,6 +65,7 @@ options=""
 ############################################################################
 
 . features/parse.sh
+. features/only.sh
 
 config="$0"
 
@@ -76,13 +79,27 @@ do
 
     -g|--debug) debug=yes;;
     -c|--check) check=yes;;
+    -l|--logging) logging=yes;;
     -s|--symbols) symbols=yes;;
     -p|--pedantic) pedantic=yes;;
     -d|--diagnose) diagnose=yes;;
 
+    --no-check)
+      [ $check = yes ] && \
+        die "can not combine '--check' and '--no-check'"
+      check=no
+      ;;
+
+    --no-logging)
+      [ $logging = yes ] && \
+        die "can not combine '--logging' and '--no-logging'"
+      logging=no
+      ;;
+
     -f*|-static) options="$options $1";;
 
-    *) parse "$1" || die "invalid option '$1' (try '-h')";;
+    --only-*) only "$1" || die "invalid option '$1' (try '-h')";;
+    --no-*) parse "$1" || die "invalid option '$1' (try '-h')";;
   esac
   config="$config $1"
   shift
@@ -102,8 +119,17 @@ echo "$config" > .config
 [ $debug = yes -a $check = yes ] && \
   die "'--debug' implies '--check'"
 
+[ $debug = yes -a $logging = yes ] && \
+  die "'--debug' implies '--logging'"
+
 [ $debug = yes -a $symbols = yes ] && \
   die "'--debug' implies '--symbols'"
+
+[ $debug = no -a $check = no ] && \
+  die "can not use '--no-check' without '-g'"
+
+[ $debug = no -a $logging = no ] && \
+  die "can not use '--no-logging' without '-g'"
 
 ############################################################################
 
@@ -114,7 +140,6 @@ CFLAGS="-W -Wall"
 
 if [ $debug = yes ]
 then
-  check=yes
   CFLAGS="$CFLAGS -ggdb3"
 else
   CFLAGS="$CFLAGS -O3"
@@ -125,7 +150,12 @@ fi
 
 [ $symbols = yes ] && CFLAGS="$CFLAGS -ggdb3"
 CFLAGS="$CFLAGS$options"
+
+[ $check = undefined ] && check=$debug
+[ $logging = undefined ] && logging=$debug
+
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
+[ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 [ $diagnose = yes ] && CFLAGS="$CFLAGS -DIAGNOSE"
 
 . features/define.sh

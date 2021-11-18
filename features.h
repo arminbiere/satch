@@ -19,7 +19,7 @@
 // Now set some internal options, which simplify the solver code.
 
 // We have an internal implied feature 'switch' for mode switching which is
-// defined if either 'NFOCUSED' or 'NSTABLE' is defined.  Nothe that, both
+// defined if either 'NFOCUSED' or 'NSTABLE' is defined.  Note that, both
 // features can not be disabled at the same time.
 
 #if defined(NFOCUSED) || defined(NSTABLE)

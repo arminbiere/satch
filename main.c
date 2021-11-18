@@ -1,6 +1,4 @@
 /*------------------------------------------------------------------------*/
-//   Copyright (c) 2021, Armin Biere, Johannes Kepler University Linz     //
-/*------------------------------------------------------------------------*/
 
 // This file 'main.c' provides a DIMACS parser and a pretty printer of
 // witnesses (satisfying assignments / models) for the stand-alone version
@@ -28,7 +26,7 @@ static const char *usage =
 "  -f | --force         overwrite proof files and relax parsing\n"
 "  -n | --no-witness    disable printing of satisfying assignment\n"
 "\n"
-#ifndef NDEBUG
+#ifdef LOGGING
 "  -l | --log           enable logging messages\n"
 #endif
 "  -q | --quiet         disable verbose messages\n"
@@ -111,7 +109,7 @@ static uint64_t bytes;		// Read bytes for verbose message.
 
 /*------------------------------------------------------------------------*/
 
-// Static global solver and number of variables.
+// Static global solver and parsed number of variables.
 
 struct satch *volatile solver;
 static int variables;
@@ -119,6 +117,7 @@ static int variables;
 /*------------------------------------------------------------------------*/
 
 // Global options (we keep the actual option string used to set them).
+
 // Note that global variables in 'C' are initialized to zero and thus these
 // options are all disabled initially.
 
@@ -126,24 +125,25 @@ static const char *ascii;	// Force ASCII format for proof files.
 static const char *binary;	// Force binary format writing to stdout.
 static const char *force;	// Overwrite proofs and relax parsing.
 
-#ifndef NDEBUG
+#ifdef LOGGING
 const char *logging;
 #endif
 static const char *quiet;	// Turn off default 'verbose' mode.
-const char *no_witness;		//
+const char *no_witness;		// Do not print satisfying assignment.
 
 static int verbose = 1;		// Verbose level (unless 'quiet' is set).
 
 /*------------------------------------------------------------------------*/
 
-// Delayed encoding of XORs.
+// Store parsed XORs for delayed encoding of XORs (particularly with '-f')
+// as well as XOR witness checking if compiled with 'NDEBUG' undefined.
 
 static struct int_stack xors;
 
 /*------------------------------------------------------------------------*/
 
 // Line buffer for pretty-printing witnesses ('v' lines following the SAT
-// competition output format formatted to at most 78 characters per line).
+// competition output format fit to at most 78 characters per line).
 
 static char buffer[80];
 static size_t size_buffer;
@@ -167,12 +167,15 @@ static void parse_error (const char *fmt, ...)
 static void message (const char *fmt, ...)
   __attribute__((format (printf, 1, 2)));
 
-#ifndef NDEBUG
+#ifdef LOGGING
 
 static bool logging_prefix (const char *fmt, ...)
   __attribute__((format (printf, 1, 2)));
 
 #endif
+
+// After the declaration for catching mismatching format strings, the
+// implementation of the actual error and verbose message functions follow.
 
 static void
 error (const char *fmt, ...)
@@ -228,7 +231,7 @@ message (const char *fmt, ...)
   fflush (stdout);
 }
 
-#ifndef NDEBUG
+#ifdef LOGGING
 
 static bool
 logging_prefix (const char *fmt, ...)
@@ -255,6 +258,9 @@ logging_suffix (void)
   fflush (stdout);
 }
 
+// Macros hiding making sure that that no code related to logging is
+// compiled into the solver if logging is disable at compile-time.
+
 #define LOG(...) \
 do { \
   if (logging_prefix (__VA_ARGS__)) \
@@ -263,9 +269,15 @@ do { \
 
 #else
 
+// Provide and empty macro if logging is disabled.
+
 #define LOG(...) do { } while (0)
 
 #endif
+
+/*------------------------------------------------------------------------*/
+
+// Print the banner of the solver with interesting information.
 
 static void
 banner (void)
@@ -285,6 +297,7 @@ banner (void)
 /*------------------------------------------------------------------------*/
 
 // We also allow parsing XOR clauses if the file has an 'p xnf ...' header.
+
 // These XOR clauses are prefixed by an 'x', i.e., the clause 'x -1 2 0'
 // means that the variable '1' is equivalent to variable '2'. We simply
 // encode those XOR clauses back to CNF by introducing Tseitin variables.
@@ -304,7 +317,7 @@ quaternary (int a, int b, int c, int d)
 static void
 direct_xor_encoding (size_t size, int *l)
 {
-#ifndef NDEBUG
+#ifdef LOGGING
   if (logging_prefix ("direct encoding of size %zu XOR", size))
     {
       for (size_t i = 0; i < size; i++)
@@ -368,7 +381,7 @@ encode_xor (int tseitin, size_t size, int *literals)
 // In forced parsing mode we do not know the number of actual variables
 // while parsing an XOR clause and since we need to introduce Tseitin
 // variables to encode an XOR we need to wait until we have determined the
-// maximum variable index occurring in the file before encoding the formula.
+// maximum variable index occurring in the file before encoding XORs.
 
 // As a side-effect of postponing the encoding of XOR clauses in forced
 // parsing mode the Tseitin variables will be activated in a different
@@ -395,7 +408,8 @@ encode_xors (int tseitin, size_t start)
 #ifndef NDEBUG
 
 // The XORs are not seen by the library and thus we need to check models
-// returned by the library manually here.
+// returned by the library manually here (this is mainly used to catch
+// potential issues with incorrect encoding code).
 
 static void
 check_xors_satisfied (void)
@@ -443,9 +457,10 @@ check_xors_satisfied (void)
       fflush (stderr);
       abort ();
     }
-
+#ifdef LOGGING
   if (logging)
     LOG ("checked all %zu XORs to be satisfied", checked);
+#endif
 }
 
 #endif
@@ -458,8 +473,8 @@ check_xors_satisfied (void)
 // the number of clauses it uses 'size_t'.  Thus in a 64-bit environment it
 // can parse really large CNFs with 2^32 clauses and more.
 
-// The following function reads a character from the global file variable,
-// squeezes out carriage return characters (before checking that they are
+// The following function reads a character from the global input file,
+// squeezes out carriage return characters (after checking that they are
 // followed by a newline) and maintains read bytes and lines statistics.
 
 static inline int
@@ -479,6 +494,8 @@ next (void)
     bytes++;
   return res;
 }
+
+// Needed at several places to print statistics.
 
 static inline double
 percent (double a, double b)
@@ -720,7 +737,7 @@ parse (void)
 
 	  if (force)
 	    {
-#ifndef NDEBUG
+#ifdef LOGGING
 	      if (logging_prefix ("parsed size %zu XOR", size))
 		{
 		  for (const int *p = x; x != xors.end; x++)
@@ -939,8 +956,6 @@ reset_signal_handler (void)
 #undef SIGNAL
 }
 
-// *INDENT-ON*
-
 static void
 catch_signal (int sig)
 {
@@ -952,7 +967,7 @@ catch_signal (int sig)
   if (sig == SIG) name = #SIG;
   SIGNALS
 #undef SIGNAL
-    if (!quiet)
+  if (!quiet)
     {
       COLORS (1);
       fputs ("c\nc ", stdout);
@@ -986,9 +1001,8 @@ init_signal_handler (void)
 
 /*------------------------------------------------------------------------*/
 
-// We assume that we only each long option to used only once.  The first
-// usage 'a' is stored at the given pointer 'p' and it is checked that we
-// did not set this option twice.
+// We allow to use command line options only once.  The first usage 'a' is
+// stored at the given pointer 'p' and is checked not be set already.
 
 static void
 set_option (const char **p, const char *a)
@@ -1001,8 +1015,8 @@ set_option (const char **p, const char *a)
     error ("redundant '%s' and '%s'", *p, a);
 }
 
-// Parsing of a long option with a 32-bit integer argument precisely
-// checking for under- and overflow.
+// The next function parses a long option with a 32-bit integer argument
+// precisely and checks for under- and overflow.
 
 // The first argument 'arg' is the string giving as long option on the
 // command line.  The 'name' denotes the name of the option (without leading
@@ -1010,7 +1024,7 @@ set_option (const char **p, const char *a)
 // string (with 'set_option' above).  The actual value is returned through
 // the last pointer.
 
-// Checking both overflows requires two separate loops below (since
+// Checking under- and overflow requires two separate loops below (since
 // 'INT_MAX < -INT_MIN' and the second loop would fail for 'INT_MIN').
 
 static bool
@@ -1069,6 +1083,8 @@ parse_int_option (const char *arg,
   return true;
 }
 
+/*------------------------------------------------------------------------*/
+
 int
 main (int argc, char **argv)
 {
@@ -1096,10 +1112,10 @@ main (int argc, char **argv)
 	set_option (&no_witness, arg);
 
       else if (!strcmp (arg, "-l") || !strcmp (arg, "--log"))
-#ifdef NDEBUG
-	error ("solver configured without logging support");
-#else
+#ifdef LOGGING
 	set_option (&logging, arg);
+#else
+	error ("solver configured without logging support");
 #endif
       else if (!strcmp (arg, "-q") || !strcmp (arg, "--quiet"))
 	set_option (&quiet, arg);
@@ -1123,7 +1139,7 @@ main (int argc, char **argv)
 	input.path = arg;
     }
 
-#ifndef NDEBUG
+#ifdef LOGGING
   if (quiet && logging)
     error ("can not combine '%s' and '%s'", quiet, logging);
 #endif
@@ -1134,7 +1150,7 @@ main (int argc, char **argv)
     error ("failed to initialize solver");
   if (!quiet)
     satch_set_verbose_level (solver, verbose);
-#ifndef NDEBUG
+#ifdef LOGGING
   if (logging)
     satch_enable_logging_messages (solver);
 #endif

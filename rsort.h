@@ -1,7 +1,3 @@
-/*------------------------------------------------------------------------*/
-// Copyright (c) 2019-2021, Armin Biere, Johannes Kepler University Linz  //
-/*------------------------------------------------------------------------*/
-
 #ifndef _rsort_h_INCLUDED
 #define _rsort_h_INCLUDED
 

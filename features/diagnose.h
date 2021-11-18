@@ -2,9 +2,6 @@
 
 // Print compile time diagnostics on disabled features.
 
-#ifdef NACTIVE
-#pragma message "#define NACTIVE"
-#endif
 #ifdef NBEST
 #pragma message "#define NBEST"
 #endif
@@ -14,11 +11,20 @@
 #ifdef NBUMP
 #pragma message "#define NBUMP"
 #endif
+#ifdef NBUMPREASONS
+#pragma message "#define NBUMPREASONS"
+#endif
 #ifdef NCACHE
 #pragma message "#define NCACHE"
 #endif
 #ifdef NCOLOR
 #pragma message "#define NCOLOR"
+#endif
+#ifdef NELIMINATION
+#pragma message "#define NELIMINATION"
+#endif
+#ifdef NELIMINATIONLIMITS
+#pragma message "#define NELIMINATIONLIMITS"
 #endif
 #ifdef NFOCUSED
 #pragma message "#define NFOCUSED"
@@ -26,17 +32,26 @@
 #ifdef NGLUE
 #pragma message "#define NGLUE"
 #endif
+#ifdef NINPROCESSING
+#pragma message "#define NINPROCESSING"
+#endif
 #ifdef NINVERTED
 #pragma message "#define NINVERTED"
+#endif
+#ifdef NLAZYACTIVATION
+#pragma message "#define NLAZYACTIVATION"
 #endif
 #ifdef NLEARN
 #pragma message "#define NLEARN"
 #endif
+#ifdef NLIMITS
+#pragma message "#define NLIMITS"
+#endif
 #ifdef NMINIMIZE
 #pragma message "#define NMINIMIZE"
 #endif
-#ifdef NREASONS
-#pragma message "#define NREASONS"
+#ifdef NRADIXSORT
+#pragma message "#define NRADIXSORT"
 #endif
 #ifdef NREDUCE
 #pragma message "#define NREDUCE"
@@ -50,17 +65,35 @@
 #ifdef NREUSE
 #pragma message "#define NREUSE"
 #endif
-#ifdef NRSORT
-#pragma message "#define NRSORT"
+#ifdef NREUSESTABLE
+#pragma message "#define NREUSESTABLE"
 #endif
 #ifdef NSAVE
 #pragma message "#define NSAVE"
 #endif
-#ifdef NSORT
-#pragma message "#define NSORT"
+#ifdef NSHRINK
+#pragma message "#define NSHRINK"
+#endif
+#ifdef NSIMPLIFICATION
+#pragma message "#define NSIMPLIFICATION"
+#endif
+#ifdef NSORTANALYZED
+#pragma message "#define NSORTANALYZED"
+#endif
+#ifdef NSORTDEDUCED
+#pragma message "#define NSORTDEDUCED"
 #endif
 #ifdef NSTABLE
 #pragma message "#define NSTABLE"
+#endif
+#ifdef NSTRENGTHENING
+#pragma message "#define NSTRENGTHENING"
+#endif
+#ifdef NSUBSUMPTION
+#pragma message "#define NSUBSUMPTION"
+#endif
+#ifdef NSUBSUMPTIONLIMITS
+#pragma message "#define NSUBSUMPTIONLIMITS"
 #endif
 #ifdef NTARGET
 #pragma message "#define NTARGET"
@@ -88,4 +121,7 @@
 #endif
 #ifdef NVSIDS
 #pragma message "#define NVSIDS"
+#endif
+#ifdef NWATCHES
+#pragma message "#define NWATCHES"
 #endif

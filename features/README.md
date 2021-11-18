@@ -24,14 +24,16 @@ Now we automatically generate the code from the following files:
 - [`implied.csv`](implied.csv) is a list of implications (one option
   implies another)
 
-The utility `generate` compiled from `generate.c` will read those files
-above, perform extensive sanity checking, then computes transitive
-implications and finally generates the following set of files files.
+The utility `generate` compiled from [`generate.c`](generate.c) will read
+those files above, perform extensive sanity checking, then computes
+transitive implications and finally generates the following set of files
+files.
 
 Shell Scripts
 -------------
 
-The first set consists of files read and used by `../configure`:
+The first set consists of files read and used by
+[`../configure`](../configure):
 
 - [`check.sh`](check.sh)   checks that options are not implied nor clashing
 - [`define.sh`](define.sh) produces corresponding C preprocessor flags '-N...'
