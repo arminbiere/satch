@@ -692,7 +692,7 @@ parse (void)
 
       // Be careful to check the character after the last digit.
 
-      if (ch != ' ' && ch != '\t' && ch != '\n' && ch != 'c')
+      if (ch != ' ' && ch != '\t' && ch != '\n' && ch != 'c' && ch != EOF)
 	parse_error ("unexpected character after '%d'", lit);
 
       assert (lit != INT_MIN);
