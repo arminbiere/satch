@@ -5,6 +5,8 @@
 // All functions are implemented in 'satch.c' except for the last three
 // returning build information. Those are implemented in 'config.c'.
 
+#define _GNU_SOURCE
+
 // The parser and witness printer implemented in the stand-alone solver
 // front-end 'main.c' are not considered to be part of the library.
 
@@ -147,4 +149,12 @@ const char *satch_identifier (void);	// GIT hash.
 
 /*------------------------------------------------------------------------*/
 
+#ifndef NQUEUE
+unsigned max_stamped_unassigned_variable_on_decision_queue (struct satch
+							    *solver);
+#endif
+
+#ifndef NHEAP
+unsigned max_score_unassigned_variable_on_binary_heap (struct satch *solver);
+#endif
 #endif

@@ -17,8 +17,23 @@
 #ifdef NCACHE
 "-cache"
 #endif
+#ifdef NCDCL
+"-cdcl"
+#endif
+#ifdef NCHEAPPROFILING
+"-cheapprofiling"
+#endif
+#ifdef NCHRONO
+"-chrono"
+#endif
+#ifdef NCHRONOREUSE
+"-chronoreuse"
+#endif
 #ifdef NCOLOR
 "-color"
+#endif
+#ifdef NCONTROL
+"-control"
 #endif
 #ifdef NELIMINATION
 "-elimination"
@@ -115,6 +130,15 @@
 #endif
 #ifdef NVIRTUAL
 "-virtual"
+#endif
+#ifdef NVIVIFICATION
+"-vivification"
+#endif
+#ifdef NVIVIFICATIONLIMITS
+"-vivificationlimits"
+#endif
+#ifdef NVIVIFYIMPLY
+"-vivifyimply"
 #endif
 #ifdef NVMTF
 "-vmtf"

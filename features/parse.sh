@@ -10,7 +10,12 @@ parse () {
     x"--no-bump") bump=no;;
     x"--no-bump-reasons") bumpreasons=no;;
     x"--no-cache") cache=no;;
+    x"--no-cdcl") cdcl=no;;
+    x"--no-cheapprofiling") cheapprofiling=no;;
+    x"--no-chrono") chrono=no;;
+    x"--no-chronoreuse") chronoreuse=no;;
     x"--no-color") color=no;;
+    x"--no-control") control=no;;
     x"--no-elimination") elimination=no;;
     x"--no-elimination-limits") eliminationlimits=no;;
     x"--no-focused") focused=no;;
@@ -43,6 +48,9 @@ parse () {
     x"--no-used") used=no;;
     x"--no-variadic") variadic=no;;
     x"--no-virtual") virtual=no;;
+    x"--no-vivification") vivification=no;;
+    x"--no-vivificationlimits") vivificationlimits=no;;
+    x"--no-vivifyimply") vivifyimply=no;;
     x"--no-vmtf") vmtf=no;;
     x"--no-vsids") vsids=no;;
     x"--no-watches") watches=no;;

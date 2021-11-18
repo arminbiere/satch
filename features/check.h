@@ -8,6 +8,12 @@
 #if defined(NBUMP) && defined(NBUMPREASONS)
 #error "'NBUMP' implies 'NBUMPREASONS' (the latter should not be defined)"
 #endif
+#if defined(NBUMP) && defined(NINVERTED)
+#error "'NBUMP' implies 'NINVERTED' (the latter should not be defined)"
+#endif
+#if defined(NBUMP) && defined(NRESTART)
+#error "'NBUMP' implies 'NRESTART' (the latter should not be defined)"
+#endif
 #if defined(NBUMP) && defined(NREUSE)
 #error "'NBUMP' implies 'NREUSE' (the latter should not be defined)"
 #endif
@@ -22,6 +28,87 @@
 #endif
 #if defined(NBUMP) && defined(NVSIDS)
 #error "'NBUMP' implies 'NVSIDS' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NBEST)
+#error "'NCDCL' implies 'NBEST' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NCHRONO)
+#error "'NCDCL' implies 'NCHRONO' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NCHRONOREUSE)
+#error "'NCDCL' implies 'NCHRONOREUSE' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NFOCUSED)
+#error "'NCDCL' implies 'NFOCUSED' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NGLUE)
+#error "'NCDCL' implies 'NGLUE' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NINPROCESSING)
+#error "'NCDCL' implies 'NINPROCESSING' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NLEARN)
+#error "'NCDCL' implies 'NLEARN' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NMINIMIZE)
+#error "'NCDCL' implies 'NMINIMIZE' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NREDUCE)
+#error "'NCDCL' implies 'NREDUCE' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NRESTART)
+#error "'NCDCL' implies 'NRESTART' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NREUSE)
+#error "'NCDCL' implies 'NREUSE' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NREUSESTABLE)
+#error "'NCDCL' implies 'NREUSESTABLE' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NSHRINK)
+#error "'NCDCL' implies 'NSHRINK' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NSORTANALYZED)
+#error "'NCDCL' implies 'NSORTANALYZED' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NSORTDEDUCED)
+#error "'NCDCL' implies 'NSORTDEDUCED' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NTIER1)
+#error "'NCDCL' implies 'NTIER1' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NTIER2)
+#error "'NCDCL' implies 'NTIER2' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NUSED)
+#error "'NCDCL' implies 'NUSED' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NVMTF)
+#error "'NCDCL' implies 'NVMTF' (the latter should not be defined)"
+#endif
+#if defined(NCDCL) && defined(NVSIDS)
+#error "'NCDCL' implies 'NVSIDS' (the latter should not be defined)"
+#endif
+#if defined(NCHRONO) && defined(NCHRONOREUSE)
+#error "'NCHRONO' implies 'NCHRONOREUSE' (the latter should not be defined)"
+#endif
+#if defined(NCONTROL) && defined(NCHRONO)
+#error "'NCONTROL' implies 'NCHRONO' (the latter should not be defined)"
+#endif
+#if defined(NCONTROL) && defined(NCHRONOREUSE)
+#error "'NCONTROL' implies 'NCHRONOREUSE' (the latter should not be defined)"
+#endif
+#if defined(NCONTROL) && defined(NSHRINK)
+#error "'NCONTROL' implies 'NSHRINK' (the latter should not be defined)"
+#endif
+#if defined(NCONTROL) && defined(NVIVIFICATION)
+#error "'NCONTROL' implies 'NVIVIFICATION' (the latter should not be defined)"
+#endif
+#if defined(NCONTROL) && defined(NVIVIFICATIONLIMITS)
+#error "'NCONTROL' implies 'NVIVIFICATIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NCONTROL) && defined(NVIVIFYIMPLY)
+#error "'NCONTROL' implies 'NVIVIFYIMPLY' (the latter should not be defined)"
 #endif
 #if defined(NELIMINATION) && defined(NELIMINATIONLIMITS)
 #error "'NELIMINATION' implies 'NELIMINATIONLIMITS' (the latter should not be defined)"
@@ -164,6 +251,12 @@
 #if defined(NUSED) && defined(NTIER2)
 #error "'NUSED' implies 'NTIER2' (the latter should not be defined)"
 #endif
+#if defined(NVIVIFICATION) && defined(NVIVIFICATIONLIMITS)
+#error "'NVIVIFICATION' implies 'NVIVIFICATIONLIMITS' (the latter should not be defined)"
+#endif
+#if defined(NVIVIFICATION) && defined(NVIVIFYIMPLY)
+#error "'NVIVIFICATION' implies 'NVIVIFYIMPLY' (the latter should not be defined)"
+#endif
 #if defined(NVMTF) && defined(NSORTANALYZED)
 #error "'NVMTF' implies 'NSORTANALYZED' (the latter should not be defined)"
 #endif
@@ -203,6 +296,6 @@
 #if defined(NSTABLE) && defined(NVSIDS)
 #error "'NSTABLE' and 'NVSIDS' can not be combined"
 #endif
-#if defined(NVMTF) && defined(NVSIDS)
-#error "'NVMTF' and 'NVSIDS' can not be combined"
+#if defined(NCDCL) && defined(NSTABLE)
+#error "'NCDCL' and 'NSTABLE' can not be combined"
 #endif

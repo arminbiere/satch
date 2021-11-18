@@ -16,7 +16,7 @@
 // to be deleted (from the checker or in general have been 'lost').
 
 /*------------------------------------------------------------------------*/
-
+#define _GNU_SOURCE
 #include "catch.h"
 #include "colors.h"
 #include "stack.h"

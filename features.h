@@ -22,9 +22,21 @@
 // defined if either 'NFOCUSED' or 'NSTABLE' is defined.  Note that, both
 // features can not be disabled at the same time.
 
+#ifdef NCDCL
+#define DLIS
+#define NVSIDS
+#define NVMTF
+#define NQUEUE
+#define NHEAP
+#define NSWITCH
+#endif
+
 #if defined(NFOCUSED) || defined(NSTABLE)
 #define NSWITCH
 #endif
+
+
+#ifndef NCDCL
 
 // We want to allow the following combination of features for queues and
 // heaps.  Beware that the table below has the features positively while our
@@ -111,6 +123,13 @@
 #define NHEAP
 #endif
 
+// If neither VMTF and VSIDS are activated, we switch to DLIS. There is currently
+// no way to use it only during one phase.
+#if defined(NVMTF) && defined (NVSIDS)
+#define NSWITCH
+#define DLIS
+#endif
+
 // We need to pick one of 'NVSIDS' or 'NVMTF' if 'NSWITCH' is on.  This is
 // in essence a disjunctive implication 'NSWITCH -> (NVSIDS || NVMTF)' which
 // we currently do not support with our feature generation automatically.
@@ -122,6 +141,8 @@
 #if defined(NQUEUE) && !defined(NVMTF)
 #define NVMTF
 #endif
+#endif
+
 #endif
 
 // Making these choices at run-time does not simplify the complexity of
