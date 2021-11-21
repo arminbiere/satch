@@ -99,7 +99,7 @@
 
 # Check clashing disabled features.
 
+[ $cdcl = no -a $stable = no ] && die "can not combine '--no-cdcl' and '--no-stable'"
 [ $focused = no -a $stable = no ] && die "can not combine '--no-focused' and '--no-stable'"
 [ $focused = no -a $vmtf = no ] && die "can not combine '--no-focused' and '--no-vmtf'"
 [ $stable = no -a $vsids = no ] && die "can not combine '--no-stable' and '--no-vsids'"
-[ $cdcl = no -a $stable = no ] && die "can not combine '--no-cdcl' and '--no-stable'"

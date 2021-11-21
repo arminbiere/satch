@@ -287,6 +287,9 @@
 
 // Check clashing disabled features.
 
+#if defined(NCDCL) && defined(NSTABLE)
+#error "'NCDCL' and 'NSTABLE' can not be combined"
+#endif
 #if defined(NFOCUSED) && defined(NSTABLE)
 #error "'NFOCUSED' and 'NSTABLE' can not be combined"
 #endif
@@ -295,7 +298,4 @@
 #endif
 #if defined(NSTABLE) && defined(NVSIDS)
 #error "'NSTABLE' and 'NVSIDS' can not be combined"
-#endif
-#if defined(NCDCL) && defined(NSTABLE)
-#error "'NCDCL' and 'NSTABLE' can not be combined"
 #endif
