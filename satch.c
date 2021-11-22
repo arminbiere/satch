@@ -192,6 +192,7 @@
 #include "rsort.h"		// Generic radix sort implementation.
 #endif
 
+#include "qsort.h"		// Generic radix sort implementation.
 #include "stack.h"		// Generic stack implementation.
 #include "colors.h"		// Shared code for terminal colors.
 
@@ -919,6 +920,7 @@ struct satch
 #endif
 #ifndef NVIVIFICATION
   struct unsigned_stack sorted;
+  struct unsigned_stack sorter;
   struct clauses vivification_schedule;
   signed char *vivify_marks;	// TODO: make marks compatible with analyzed
   // and mark_literal at the same time.
@@ -10015,14 +10017,16 @@ vivify_sort_lits_by_counts (struct satch *solver, unsigned *counts,
 {
 
 #ifndef NRADIXSORT
- (void) solver;
- #define MORE_OCCURRENCES(LIT) \
+  (void) solver;
+#define MORE_OCCURRENCES(LIT) \
   ~counts[LIT]
 
   RSORT (unsigned, unsigned, *c, MORE_OCCURRENCES);
 #else
-  (void) solver;
-  qsort_r (c->begin, SIZE_STACK (*c), sizeof (*c->begin), more_occurrences, counts);
+
+#define MORE_OCCURRENCES(LITA,LITB) \
+  ((~counts[LITA]) < (~counts[LITB]))
+  SORT_STACK (unsigned, *c, MORE_OCCURRENCES);
 #endif
 }
 
@@ -10050,12 +10054,10 @@ vivify_sort_clause_by_counts (struct satch *solver, unsigned *counts,
   vivify_sort_lits_by_counts (solver, counts, &c2);
 }
 
-static inline int
-worse_candidate (const void *cp, const void *dp, void *countsp)
+
+static inline bool
+worse_candidate (unsigned* counts, const struct clause *const c, const struct clause *const d)
 {
-  unsigned *counts = (unsigned *) countsp;
-  const struct clause *const c = *((const struct clause * const *) cp);
-  const struct clause *const d = *((const struct clause * const *) dp);
   assert (c);
   assert (d);
   assert (counts);
@@ -10064,10 +10066,10 @@ worse_candidate (const void *cp, const void *dp, void *countsp)
   assert (!is_tagged_clause (d));
 #endif
   if (!c->vivify && d->vivify)
-    return 1;
+    return true;
 
   if (c->vivify && !d->vivify)
-    return -1;
+    return false;
 
   unsigned const *p = c->literals;
   unsigned const *q = d->literals;
@@ -10082,18 +10084,19 @@ worse_candidate (const void *cp, const void *dp, void *countsp)
 	continue;
       const unsigned u = counts[a];
       const unsigned v = counts[b];
-      const int res = -int_compare (u, v);	// more occurences are smaller
-      if (res)
-	return res;
-      return int_compare (a, b);
+      if (u < v)
+        return true;
+      if (u > v)
+        return false;
+      return a < b;
     }
 
   if (p != e && q == f)
-    return -1;
+    return true;
   if (p == e && q != f)
-    return 1;
+    return false;
 
-  return int_compare ((long int) c, (long int) d);
+  return (long int)c < (long int)d;
 }
 
 
@@ -10105,10 +10108,11 @@ sort_vivification_candidates (struct satch *solver,
     {
       vivify_sort_clause_by_counts (solver, counts, c);
     }
-  qsort_r (schedule->begin, SIZE_STACK (*schedule), sizeof (struct clause *),
-	   worse_candidate, counts);
-}
+#define WORSE_CANDIDATE(c, d) \
+  worse_candidate (counts, c, d)
 
+  SORT_STACK (struct clause*, *schedule, WORSE_CANDIDATE);
+}
 
 static void
 count_literal (unsigned lit, unsigned *counts)
