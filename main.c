@@ -10,7 +10,6 @@
 // make a mess out of our nicely formatted 'usage' message.  After the
 // definition there is another comment switching formatting on again.
 
-#define _GNU_SOURCE
 // *INDENT-OFF*
 
 static const char *usage =
