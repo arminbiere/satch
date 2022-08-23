@@ -1694,7 +1694,7 @@ start_profiling (struct satch *solver, struct profile *profile)
 // Starting and stopping a profile has to follow a block structure, i.e.,
 // the corresponding 'STOP' has be to called in reverse order of 'START'.
 
-// For instance 'START (A); START (B); ...; STOP (A); STOP (B);' is correct
+// For instance 'START (A); START (B); ...; STOP (B); STOP (A);' is correct
 // but interleaving not ('START (A); START (B); ...; STOP (A); STOP (B);').
 
 // In order to simplify testing and debugging violations of this rule we
