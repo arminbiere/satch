@@ -68,7 +68,7 @@
 // './configure -d' which in turn defines '-DIAGNOSE' and forces printing
 // those definitions and in particularly check out 'features/README.md'.
 
-#include "features.h"
+#include "satch_features.h"
 
 /*------------------------------------------------------------------------*/
 
